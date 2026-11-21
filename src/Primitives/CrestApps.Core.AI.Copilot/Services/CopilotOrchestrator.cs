@@ -3,6 +3,7 @@ using System.Runtime.CompilerServices;
 using System.Security.Claims;
 using System.Text;
 using System.Text.Json;
+using CrestApps.Core.AI.Completions;
 using CrestApps.Core.AI.Copilot.Models;
 using CrestApps.Core.AI.Handlers;
 using CrestApps.Core.AI.Mcp;
@@ -94,6 +95,7 @@ public sealed class CopilotOrchestrator : IOrchestrator
         // Build AIFunction instances from non-MCP registry entries only.
         // MCP tools are excluded because Copilot manages MCP connections natively.
         var tools = new List<AIFunction>();
+
         foreach (var entry in allTools)
         {
             if (entry.Source == ToolRegistryEntrySource.McpServer || entry.CreateAsync is null)
@@ -104,6 +106,21 @@ public sealed class CopilotOrchestrator : IOrchestrator
             try
             {
                 var aiTool = context.ServiceProvider is not null ? await entry.CreateAsync(context.ServiceProvider) : null;
+
+                // This orchestrator cannot pause for an approval. A tool that requires one is replaced with a tool
+                // that does not run it and tells the model why, so it never runs unasked.
+                if (aiTool is not null && entry.RequiresApproval)
+                {
+                    if (_logger.IsEnabled(LogLevel.Debug))
+                    {
+                        _logger.LogDebug(
+                            "The tool '{ToolName}' requires an approval, which the Copilot orchestrator cannot ask for. It is offered as a tool that does not run.",
+                            entry.Name);
+                    }
+
+                    aiTool = DefaultToolMaterializer.WrapForApproval(aiTool, entry, ToolMaterializationOptions.Default);
+                }
+
                 if (aiTool is AIFunction function)
                 {
                     // Wrap the function so that arguments.Services is always set when

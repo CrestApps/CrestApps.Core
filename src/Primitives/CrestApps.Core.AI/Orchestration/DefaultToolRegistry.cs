@@ -237,13 +237,16 @@ internal sealed class DefaultToolRegistry : IToolRegistry
 
         resolvedEntries.Add(entry);
 
-        if (!_toolOptions.Tools.TryGetValue(entry.Name, out var definition))
+        if (!_toolOptions.TryGetTool(entry.Name, out var definition))
         {
             return;
         }
 
-        foreach (var dependencyName in definition.Dependencies)
+        foreach (var declaredDependencyName in definition.Dependencies)
         {
+            // A dependency may still be declared under the earlier name of a tool that was renamed.
+            var dependencyName = _toolOptions.ResolveToolName(declaredDependencyName);
+
             if (string.IsNullOrWhiteSpace(dependencyName) ||
                 !entriesByName.TryGetValue(dependencyName, out var dependencyEntries))
             {

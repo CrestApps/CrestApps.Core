@@ -57,7 +57,66 @@ Returns an `AIToolBuilder<TTool>` for fluent configuration:
 | `.WithoutDependency(string)` / `.WithoutDependencies(params string[])` | Removes previously registered dependency tools |
 | `.Hidden()` | Makes the tool private to explicitly named profiles or agents and excludes it from picker-style/public export surfaces |
 | `.Selectable()` | Makes the tool visible in UI and assignable to profiles |
-| `.RequireApproval()` | Asks the user to approve each call before it runs, in chat runs that can ask (AG-UI runs). Requests that cannot ask (agents, realtime, background) are not offered the tool. See [AG-UI tool approvals](./ag-ui.md#tool-approvals) |
+| `.RequireApproval()` | Asks the user to approve each call before it runs, in chat runs that can ask (AG-UI runs). Where nobody can be asked (other chats, realtime, workflows, background work), the tool does not run, and the model is told why. `.RequireApproval(false)` lets a tool run without asking. See [AG-UI tool approvals](./ag-ui.md#tool-approvals) |
+| `.AsRead()` / `.AsWrite()` / `.AsDestructive()` / `.AsExternal()` / `.AsSecurity()` | Says what the tool does (its kind). See [Tool Kinds](#tool-kinds) |
+| `.WithKind(AIToolKind)` | Sets the kind from a value |
+| `.WithAlias(string, bool grantsAccess = false)` / `.WithAliases(params string[])` | Adds an earlier name of the tool, so stored references keep working; `grantsAccess: true` also carries the earlier name's access (for a rename). See [Renaming a Tool](#renaming-a-tool) |
+
+### Tool Kinds
+
+A kind says what a tool does to the application's data and to the outside world. Hosts use it to decide from data which tools need an approval and which tools a setting that exposes every tool leaves out.
+
+| Kind | Builder method | Meaning | Needs an approval |
+|------|----------------|---------|-------------------|
+| `Read` | `.AsRead()` | Returns data and changes nothing | No |
+| `Write` | `.AsWrite()` | Creates or changes data that can be changed back | No |
+| `Destructive` | `.AsDestructive()` | Deletes data, or cannot be undone | Yes |
+| `External` | `.AsExternal()` | Sends something outside the application (an email, a text message, a call, a webhook), calls a paid service, or moves money | Yes |
+| `Security` | `.AsSecurity()` | Changes who can access what, how people sign in, secrets, or what code or templates the application runs | Yes |
+
+```csharp
+builder.Services
+    .AddCoreAITool<ListOrdersTool>("listOrders")
+        .AsRead()
+        .Selectable();
+
+builder.Services
+    .AddCoreAITool<DeleteOrderTool>("deleteOrder")
+        .AsDestructive()
+        .Selectable();
+```
+
+The kind does these things:
+
+- A `Destructive`, `External` or `Security` tool requires an approval, as if its registration called `.RequireApproval()`. Call `.RequireApproval()` for the exceptions: on a tool of another kind that should ask, or as `.RequireApproval(false)` on a tool of one of these kinds that should not ask. The explicit call wins, whichever is called first.
+- `ExposeAllTools` of the [MCP server](../mcp/server.md) and of [WebMCP](../mcp/webmcp.md) leaves out the `Destructive` and `Security` tools, and every tool that requires an approval (so `External` tools too, unless they call `.RequireApproval(false)`), because their clients call a tool directly and cannot be asked. Name such a tool in the `Tools` list to expose it.
+- The MCP server tells its clients the kind through the MCP tool annotations (`readOnlyHint`, `destructiveHint`, `openWorldHint`), and the WebMCP tool list has a `kind` value for each tool.
+- `AIToolDefinitionEntry.Kind` and `ToolRegistryEntry.Kind` carry the kind, so a tool picker or a custom tool pipeline can read it.
+
+A tool registered without a kind has `AIToolKind.Unspecified` and behaves as before: it asks for an approval only when its registration calls `.RequireApproval()`, and `ExposeAllTools` includes it unless it does. An approval is a confirmation for the person in the chat, not an access check. Callers that cannot ask for an approval are described in [AG-UI tool approvals](./ag-ui.md#tool-approvals).
+
+### Renaming a Tool
+
+Tool names are stored: on AI profiles and templates, on chat interactions, in the `Tools` lists of the MCP server and WebMCP settings, and in whatever a host derives from them (such as a permission for each tool). Give a renamed tool its earlier name as an alias, and the stored names keep working:
+
+```csharp
+builder.Services
+    .AddCoreAITool<ListUsersTool>("listUsers")
+        .WithAlias("searchForUsers", grantsAccess: true)
+        .Selectable();
+```
+
+- A profile, template or chat interaction that still stores `searchForUsers` gets the `listUsers` tool. The model sees the tool under its current name.
+- A `Tools` list of the MCP server or WebMCP settings that still names `searchForUsers` still exposes the tool.
+- A dependency declared with the earlier name (`.WithDependency("searchForUsers")`) still resolves.
+- With `grantsAccess: true`, the access check accepts the earlier name: when `IAIToolAccessEvaluator` authorizes the tool's name or that alias, the user may use the tool. A host that grants access by tool name therefore does not have to grant it again after a rename.
+- Listings show the tool once, under its current name. `AIToolDefinitionOptions.Tools` and `GetSelectableTools()` do not list aliases.
+
+Pass `grantsAccess: true` only for a rename, where the tool does what the earlier name did. When a narrower tool is merged into a broader one (a read-only `getOrder` into a `manageOrder` that can also cancel orders), add the earlier name with `.WithAlias("getOrder")` alone: stored names still resolve, but a role granted only `getOrder` does not get `manageOrder`. `.WithAliases(...)` adds aliases without access. `AIToolDefinitionEntry.AccessAliases` lists the aliases that carry access.
+
+To look a tool up by a name that may be an alias, use `AIToolDefinitionOptions.TryGetTool(nameOrAlias, out definition)`. `ResolveToolName` and `ResolveToolNames` return the current names for stored names. `IAIToolsService.GetByNameAsync` also accepts an alias. A tool is registered as a keyed `AITool` under its current name only, so code that resolves `GetKeyedService<AITool>(name)` itself resolves the name with `ResolveToolName` first.
+
+An alias must not be the name or an alias of another tool. When it is, the tool definitions fail to build with an `InvalidOperationException` that names both tools. This happens the first time the application reads `AIToolDefinitionOptions`, which is at startup or on the first request that uses AI tools. Call `.WithAlias(...)` once for each earlier name. When no stored data uses an earlier name anymore, remove the alias.
 
 ### Tool Purposes
 

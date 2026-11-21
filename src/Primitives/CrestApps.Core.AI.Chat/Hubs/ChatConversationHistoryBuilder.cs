@@ -1,6 +1,6 @@
-using System.Text.Json;
 using System.Text.RegularExpressions;
 using CrestApps.Core.AI.Models;
+using CrestApps.Core.AI.Orchestration;
 using Microsoft.Extensions.AI;
 
 namespace CrestApps.Core.AI.Chat.Hubs;
@@ -274,33 +274,11 @@ internal static partial class ChatConversationHistoryBuilder
         }
 
         history.Add(new ChatMessage(ChatRole.Assistant, completed
-            .Select(call => (AIContent)new FunctionCallContent(call.CallId, call.Name, ParseArguments(call.Arguments)))
+            .Select(call => (AIContent)new FunctionCallContent(call.CallId, call.Name, AgentRunHistory.ParseArguments(call.Arguments)))
             .ToList()));
         history.Add(new ChatMessage(ChatRole.Tool, completed
             .Select(call => (AIContent)new FunctionResultContent(call.CallId, call.Result ?? string.Empty))
             .ToList()));
-    }
-
-    /// <summary>
-    /// Reads the stored arguments of a tool call.
-    /// </summary>
-    /// <param name="arguments">The arguments, as a JSON object.</param>
-    /// <returns>The arguments.</returns>
-    internal static Dictionary<string, object> ParseArguments(string arguments)
-    {
-        if (string.IsNullOrWhiteSpace(arguments))
-        {
-            return [];
-        }
-
-        try
-        {
-            return JsonSerializer.Deserialize<Dictionary<string, object>>(arguments, AIJsonUtilities.DefaultOptions) ?? [];
-        }
-        catch (JsonException)
-        {
-            return [];
-        }
     }
 
     /// <summary>

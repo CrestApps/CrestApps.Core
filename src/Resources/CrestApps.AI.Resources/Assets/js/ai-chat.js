@@ -64,6 +64,8 @@ window.coreAIChatManager = function () {
         aguiInputLabel: 'Input',
         aguiResultLabel: 'Result',
         aguiApprovalPrompt: 'Allow this action?',
+        // Asked when an agent the assistant delegated to made the call; {0} is the agent's name.
+        aguiAgentApprovalPrompt: 'Allow {0} to do this?',
         aguiAllowLabel: 'Allow',
         aguiDenyLabel: 'Deny',
         aguiAllowedLabel: 'Allowed',
@@ -526,6 +528,10 @@ window.coreAIChatManager = function () {
                 result: call.result || '',
                 status: normalizeToolCallStatus(call.status),
                 interruptId: call.interruptId || call.approvalRequestId || null,
+                // The agent that made the call, when an agent the assistant delegated to made it.
+                agentName: call.agentName || '',
+                // The agent's title, which the person sees; the name is its id.
+                agentDisplayText: call.agentDisplayText || '',
             }));
     }
 
@@ -618,7 +624,13 @@ window.coreAIChatManager = function () {
                 : '<div class="ai-chat-agui-tool-summary">' + summary + '</div>';
 
             if (status === 'awaitingApproval' && call.interruptId) {
-                html += '<div class="ai-chat-agui-approval"><span>' + escapeHtmlText(defaultConfig.aguiApprovalPrompt) + '</span>' +
+                // A call an agent made names the agent, so the user knows who asks.
+                const agentLabel = call.agentDisplayText || describeToolCall({ name: call.agentName });
+                const approvalPrompt = call.agentName
+                    ? String(defaultConfig.aguiAgentApprovalPrompt).replace('{0}', () => agentLabel)
+                    : defaultConfig.aguiApprovalPrompt;
+
+                html += '<div class="ai-chat-agui-approval"><span>' + escapeHtmlText(approvalPrompt) + '</span>' +
                     '<button type="button" class="btn btn-sm btn-primary" data-agui-interrupt="' + escapeHtmlText(call.interruptId) + '" data-agui-approved="true">' + escapeHtmlText(defaultConfig.aguiAllowLabel) + '</button>' +
                     '<button type="button" class="btn btn-sm btn-outline-secondary" data-agui-interrupt="' + escapeHtmlText(call.interruptId) + '" data-agui-approved="false">' + escapeHtmlText(defaultConfig.aguiDenyLabel) + '</button></div>';
             }
@@ -2610,7 +2622,7 @@ window.coreAIChatManager = function () {
 
                         case 'TOOL_CALL_START': {
                             const message = this.ensureAGUIMessage(run, evt.parentMessageId);
-                            const call = { id: evt.toolCallId, name: evt.toolCallName, arguments: '', result: '', status: 'requested', interruptId: null };
+                            const call = { id: evt.toolCallId, name: evt.toolCallName, arguments: '', result: '', status: 'requested', interruptId: null, agentName: '', agentDisplayText: '' };
 
                             message.toolCalls = message.toolCalls || [];
                             message.toolCalls.push(call);
@@ -2667,6 +2679,21 @@ window.coreAIChatManager = function () {
                                     if (call) {
                                         call.status = 'awaitingApproval';
                                         call.interruptId = interrupt.id;
+
+                                        // A call an agent made: the interrupt names the agent, and the assistant's
+                                        // call to that agent waits until this one is answered.
+                                        const metadata = interrupt.metadata || {};
+
+                                        if (metadata.agentName) {
+                                            const agentCall = run.toolCalls[metadata.agentToolCallId];
+
+                                            call.agentName = metadata.agentName;
+                                            call.agentDisplayText = metadata.agentDisplayText || '';
+
+                                            if (agentCall) {
+                                                agentCall.status = 'awaitingApproval';
+                                            }
+                                        }
                                     }
                                 }
 
@@ -2925,6 +2952,21 @@ window.coreAIChatManager = function () {
 
                     if (calls.some(c => c.status === 'awaitingApproval')) {
                         return;
+                    }
+
+                    // A call to an agent waits while the agent's own calls do; it has no interrupt of its own. Every
+                    // answer is in, so it no longer waits: the resumed run makes it again, as the server records.
+                    let agentCallsAnswered = false;
+
+                    for (const call of target.toolCalls) {
+                        if (!call.interruptId && call.status === 'awaitingApproval') {
+                            call.status = 'approved';
+                            agentCallsAnswered = true;
+                        }
+                    }
+
+                    if (agentCallsAnswered) {
+                        updateMessagePresentation(target, target.references);
                     }
 
                     const resume = calls

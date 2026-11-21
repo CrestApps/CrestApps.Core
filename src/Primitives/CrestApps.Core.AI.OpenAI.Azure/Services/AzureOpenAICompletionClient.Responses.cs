@@ -149,17 +149,24 @@ public sealed partial class AzureOpenAICompletionClient
     /// </summary>
     /// <remarks>
     /// Only the text of an assistant message is kept. A stored function call without its result would make the
-    /// Responses API reject the request. The one exception is a paused run's approval requests, which the
-    /// function-invoking client turns into calls and results before anything reaches the service.
+    /// Responses API reject the request. There are two exceptions, both in a run that resumes after a person
+    /// answered tool approvals: the paused run's approval requests, which the function-invoking client turns into
+    /// calls and results before anything reaches the service, and the tool calls the paused turn made before it
+    /// paused, which are kept with their results so the model sees what the turn already did and does not do it
+    /// again.
     /// </remarks>
     /// <param name="messages">The conversation messages.</param>
     /// <param name="context">The completion context.</param>
     private static List<ChatMessage> GetResponsesPrompts(IEnumerable<ChatMessage> messages, AICompletionContext context)
     {
+        var source = messages.ToList();
+        var resumedTurnStart = GetResumedTurnStart(source);
         var history = new List<ChatMessage>();
 
-        foreach (var message in messages)
+        for (var index = 0; index < source.Count; index++)
         {
+            var message = source[index];
+
             if (message.Role == ChatRole.User && (!string.IsNullOrEmpty(message.Text) || message.Contents.Count > 0))
             {
                 history.Add(message);
@@ -167,6 +174,12 @@ public sealed partial class AzureOpenAICompletionClient
             else if (message.Role == ChatRole.Assistant && message.Contents.Any(IsApprovalRequest))
             {
                 history.Add(message);
+            }
+            else if (resumedTurnStart >= 0 && index >= resumedTurnStart && IsAnsweredToolCallMessage(source, index))
+            {
+                // The calls and, in the next message, their results.
+                history.Add(message);
+                history.Add(source[++index]);
             }
             else if (message.Role == ChatRole.Assistant && !string.IsNullOrWhiteSpace(message.Text))
             {
@@ -181,7 +194,18 @@ public sealed partial class AzureOpenAICompletionClient
             prompts.Add(new ChatMessage(ChatRole.System, context.SystemMessage));
         }
 
-        prompts.AddRange(context.PastMessagesCount > 0 ? history.TakeLast(context.PastMessagesCount.Value) : history);
+        var kept = context.PastMessagesCount > 0
+            ? history.TakeLast(context.PastMessagesCount.Value).ToList()
+            : history;
+
+        // A history cut to its newest messages can start with tool results whose tool calls were cut off, which the
+        // service rejects.
+        while (kept.Count > 0 && kept[0].Role == ChatRole.Tool)
+        {
+            kept.RemoveAt(0);
+        }
+
+        prompts.AddRange(kept);
 
         return prompts;
     }
@@ -191,5 +215,58 @@ public sealed partial class AzureOpenAICompletionClient
     {
         return content is ToolApprovalRequestContent;
     }
+
+    /// <summary>
+    /// Gets where the turn that paused for tool approvals starts, when the messages end with a person's answers to
+    /// them: after the last user message that has text.
+    /// </summary>
+    /// <param name="messages">The conversation messages.</param>
+    /// <returns>The index of the first message of the paused turn, or <c>-1</c> when the request does not resume one.</returns>
+    private static int GetResumedTurnStart(List<ChatMessage> messages)
+    {
+        if (messages.Count == 0 || !messages[^1].Contents.Any(content => content is ToolApprovalResponseContent))
+        {
+            return -1;
+        }
+
+        for (var index = messages.Count - 2; index >= 0; index--)
+        {
+            if (messages[index].Role == ChatRole.User && !string.IsNullOrEmpty(messages[index].Text))
+            {
+                return index + 1;
+            }
+        }
+
+        return 0;
+    }
 #pragma warning restore MEAI001
+
+    /// <summary>
+    /// Determines whether a message holds only tool calls and the next message holds the result of each of them, so
+    /// the pair can be sent to the service as it is.
+    /// </summary>
+    /// <param name="messages">The conversation messages.</param>
+    /// <param name="index">The index of the message that may hold the tool calls.</param>
+    /// <returns><see langword="true"/> when the message and the next one are a complete pair of calls and results.</returns>
+    private static bool IsAnsweredToolCallMessage(List<ChatMessage> messages, int index)
+    {
+        var message = messages[index];
+
+        if (message.Role != ChatRole.Assistant ||
+            message.Contents.Count == 0 ||
+            index + 1 >= messages.Count ||
+            messages[index + 1].Role != ChatRole.Tool)
+        {
+            return false;
+        }
+
+        var resultIds = messages[index + 1].Contents
+            .OfType<FunctionResultContent>()
+            .Select(result => result.CallId)
+            .ToHashSet(StringComparer.Ordinal);
+
+        return message.Contents.All(content => content is FunctionCallContent call && resultIds.Contains(call.CallId)) &&
+            resultIds.Count == message.Contents.Count &&
+            messages[index + 1].Contents.All(content => content is FunctionResultContent);
+    }
 }

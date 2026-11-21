@@ -1478,6 +1478,13 @@ public sealed class PostSessionProcessingService
 
                 if (tool is not null)
                 {
+                    // Nobody can be asked to approve a call after the session ended, so a tool that requires an
+                    // approval is replaced with one that does not run it and tells the model why.
+                    tool = DefaultToolMaterializer.WrapForApproval(tool, entry, ToolMaterializationOptions.Default);
+                }
+
+                if (tool is not null)
+                {
                     tools.Add(tool);
                 }
                 else

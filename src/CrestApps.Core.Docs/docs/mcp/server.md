@@ -308,17 +308,36 @@ services.Configure<McpServerOptions>(options =>
     options.Tools = ["crestapps-docs", "weather"];
 
     // Or expose every tool and tool instance.
-    // When set to true, the Tools allow-list above is ignored.
+    // The Tools list above then only decides which destructive and security tools, and which tools that
+    // require an approval, are exposed.
     options.ExposeAllTools = true;
 });
 ```
 
 | Property | Effect |
 |----------|--------|
-| `Tools` | An allow-list of tool and tool instance names to expose. Matching is case-insensitive. |
-| `ExposeAllTools` | When `true`, every **selectable** tool and tool instance is exposed and the allow-list is ignored. |
+| `Tools` | An allow-list of tool and tool instance names to expose. Matching is case-insensitive, and a tool is also matched by one of its [aliases](../core/tools.md#renaming-a-tool). |
+| `ExposeAllTools` | When `true`, every **selectable** tool and tool instance is exposed, except the tools registered as destructive or security tools and the tools that require an approval. Those are exposed only when `Tools` names them. |
 
 Only selectable tools are ever exposed over MCP. System tools (those marked `IsSystemTool`, which agents auto-include based on context) and hidden tools are never listed or callable — not even when `ExposeAllTools` is `true`.
+
+### Destructive and security tools
+
+A tool registered with `.AsDestructive()` or `.AsSecurity()` (see [Tool Kinds](../core/tools.md#tool-kinds)) deletes data, cannot be undone, or changes access, secrets or what the application runs. `ExposeAllTools` leaves these tools out, so turning the switch on never hands them to every MCP client. To expose one, add its name to `Tools`:
+
+```csharp
+services.Configure<McpServerOptions>(options =>
+{
+    options.ExposeAllTools = true;
+
+    // deleteOrder is registered with .AsDestructive(), so it is exposed only because it is named here.
+    options.Tools = ["deleteOrder"];
+});
+```
+
+An MCP client calls a tool directly and cannot be asked to approve the call. `ExposeAllTools` therefore also leaves out every tool that requires an approval: one registered with `.RequireApproval()`, and an external tool (`.AsExternal()`) unless it calls `.RequireApproval(false)`. Naming such a tool in `Tools` exposes it, and a client then runs it without an approval, so name it only for clients you trust with it. Tools registered without a kind and without `.RequireApproval()`, and tool instances, are exposed by `ExposeAllTools` as before.
+
+The server tells its clients the kind of each tool through the MCP tool annotations: `readOnlyHint` for a read tool, `destructiveHint` for a destructive tool, and `openWorldHint` for an external tool. A tool without a kind has no annotations.
 
 Because `McpServerOptions` is backed by site settings, an operator can choose which tools to expose from the admin **Settings → MCP server** page without redeploying. The allow-list is enforced by **both** the list and call handlers, so a tool that is not exposed can neither be discovered nor invoked.
 
@@ -366,6 +385,7 @@ Intersecting the two would be backwards. An operator wanting a working agent wou
 
 - **Its own tools run only if the agent opted in.** `AgentMetadata.AllowToolInvocation` must be `true`, exactly as when the model invokes that agent as a tool in a chat completion. It defaults to `false`, so an agent that answers suspiciously generically over MCP is usually missing this flag rather than hitting a server problem.
 - **Nested agents stay suppressed.** An agent reached over MCP can use its tools but cannot delegate to other agents; that bound is what makes running with tools safe.
+- **Its tools that require an approval do not run.** An MCP client cannot be asked to approve a call, so an agent reached over MCP gets a "was not run" result for a tool that requires one, and reports that. See [Tools of an agent that require an approval](../core/agents.md#tools-of-an-agent-that-require-an-approval).
 - **Availability is irrelevant.** `AgentAvailability.AlwaysAvailable` versus `OnDemand` governs a completion's token budget, not who may reach an agent from outside. The allow-list is the only gate.
 - **A name shared with a tool resolves to the tool.** Agents are enumerated last, and one whose name is already taken is skipped from the listing with a warning, so what is listed is always what a call will reach.
 

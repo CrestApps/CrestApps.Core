@@ -266,12 +266,14 @@ builder.Services.AddCoreAITool<CalculatorTool>(CalculatorTool.TheName)
     .WithTitle("Calculator")
     .WithDescription("Performs basic arithmetic: add, subtract, multiply, or divide two numbers.")
     .WithCategory("Utilities")
+    .AsRead()
     .Selectable();
 
 builder.Services.AddCoreAITool<SendEmailTool>(SendEmailTool.TheName)
     .WithTitle("Send email")
     .WithDescription("Logs an email request with the supplied recipient, subject, and message.")
     .WithCategory("Communications")
+    .AsExternal()
     .Selectable();
 
 builder.Services.AddScoped<IChatInteractionSettingsHandler, AIToolInstanceChatInteractionSettingsHandler>();

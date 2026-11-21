@@ -13,17 +13,17 @@ namespace CrestApps.Core.Tests.Core.AGUI;
 public sealed class AGUIToolPipelineTests
 {
     [Fact]
-    public void WrapForApproval_WrapsAToolThatRequiresApprovalOnlyWhenTheCallerCanApprove()
+    public void WrapForApproval_WrapsAToolThatRequiresApprovalWhenTheCallerCanApprove_AndRefusesItOtherwise()
     {
         var function = AIFunctionFactory.Create(() => "done", "delete_item");
         var entry = new ToolRegistryEntry { Name = "delete_item", RequiresApproval = true };
 
         var wrapped = DefaultToolMaterializer.WrapForApproval(function, entry, new ToolMaterializationOptions { SupportsToolApproval = true });
-        var unwrapped = DefaultToolMaterializer.WrapForApproval(function, entry, new ToolMaterializationOptions());
+        var refused = DefaultToolMaterializer.WrapForApproval(function, entry, new ToolMaterializationOptions());
         var notRequired = DefaultToolMaterializer.WrapForApproval(function, new ToolRegistryEntry { Name = "read" }, new ToolMaterializationOptions { SupportsToolApproval = true });
 
         Assert.IsType<ApprovalRequiredAIFunction>(wrapped);
-        Assert.Same(function, unwrapped);
+        Assert.Equal("delete_item", Assert.IsType<ApprovalUnavailableAIFunction>(refused).Name);
         Assert.Same(function, notRequired);
         Assert.Same(wrapped, DefaultToolMaterializer.WrapForApproval(wrapped, entry, new ToolMaterializationOptions { SupportsToolApproval = true }));
     }

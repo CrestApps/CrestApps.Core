@@ -40,17 +40,23 @@ internal sealed class ProfileToolRegistryProvider : IToolRegistryProvider
             return Task.FromResult<IReadOnlyList<ToolRegistryEntry>>([]);
         }
 
-        var toolDefinitions = _toolDefinitions.Value.Tools;
+        var toolDefinitions = _toolDefinitions.Value;
         var entries = new List<ToolRegistryEntry>();
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-        foreach (var toolName in configuredToolNames)
+        foreach (var configuredToolName in configuredToolNames)
         {
-            if (!toolDefinitions.TryGetValue(toolName, out var definition))
+            // A name stored before a tool was renamed is one of the tool's aliases; the tool is offered under the
+            // name it is registered with now.
+            var toolName = toolDefinitions.ResolveToolName(configuredToolName);
+
+            if (string.IsNullOrEmpty(toolName) ||
+                !toolDefinitions.Tools.TryGetValue(toolName, out var definition))
             {
                 continue;
             }
 
-            if (definition.IsSystemTool)
+            if (definition.IsSystemTool || !seen.Add(toolName))
             {
                 continue;
             }
@@ -72,6 +78,7 @@ internal sealed class ProfileToolRegistryProvider : IToolRegistryProvider
                 ? ToolRegistryEntrySource.System
                 : ToolRegistryEntrySource.Local,
             RequiresApproval = definition.RequiresApproval,
+            Kind = definition.Kind,
             CreateAsync = (sp) => ValueTask.FromResult(sp.GetKeyedService<AITool>(toolName)),
         };
     }

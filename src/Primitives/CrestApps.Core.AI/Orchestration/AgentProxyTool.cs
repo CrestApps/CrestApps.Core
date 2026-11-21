@@ -5,6 +5,7 @@ using CrestApps.Core.AI.Deployments;
 using CrestApps.Core.AI.Extensions;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Profiles;
+using CrestApps.Core.AI.Tooling;
 using Cysharp.Text;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
@@ -79,6 +80,10 @@ internal sealed class AgentProxyTool : AIFunction
 
         var logger = arguments.Services.GetRequiredService<ILogger<AgentProxyTool>>();
 
+        // Both are read before the agent runs: the agent's own tool calls replace the ambient function invocation.
+        var callId = AIToolInvocation.GetCallId(arguments);
+        var functionInvocation = FunctionInvokingChatClient.CurrentContext;
+
         if (!arguments.TryGetFirstString("prompt", out var task) || string.IsNullOrWhiteSpace(task))
         {
             return "No prompt was provided to the agent.";
@@ -99,7 +104,7 @@ internal sealed class AgentProxyTool : AIFunction
 
             if (ShouldRunWithTools(agentProfile))
             {
-                return await RunWithToolsAsync(arguments.Services, agentProfile, task, cancellationToken);
+                return await RunWithToolsAsync(arguments.Services, agentProfile, task, callId, functionInvocation, cancellationToken);
             }
 
             return await RunWithoutToolsAsync(arguments.Services, agentProfile, task, cancellationToken);
@@ -148,19 +153,71 @@ internal sealed class AgentProxyTool : AIFunction
     }
 
     /// <summary>
+    /// Gets the result of a call to an agent that paused because a tool call it made waits for a person's approval.
+    /// The assistant's turn ends with the approval request, so the model reads this only when a tool-calling loop
+    /// asks it again anyway.
+    /// </summary>
+    /// <param name="agentName">The name of the agent.</param>
+    /// <param name="toolNames">The names of the tools whose calls wait for an approval.</param>
+    /// <returns>The text of the result.</returns>
+    internal static string GetPausedMessage(string agentName, IEnumerable<string> toolNames)
+    {
+        return $"The agent '{agentName}' paused. It needs the user's approval before it can run: {string.Join(", ", toolNames)}. The user is being asked now, and the agent continues from where it stopped when they answer. Do not call the agent again for this request, and do not say that the task is done.";
+    }
+
+    /// <summary>
     /// Runs the agent through the orchestrator so its configured tools are available, while
     /// suppressing nested agents and incrementing the recursion depth for the duration.
     /// </summary>
+    /// <remarks>
+    /// A tool of the agent that requires a person's approval never runs unasked. When the run that called the
+    /// agent can ask a person (see <see cref="AgentToolApprovals"/>) and the id of this call is known, the agent
+    /// pauses on such a tool call: its run so far is kept, the caller's turn ends with an approval request, and
+    /// the call that resumes continues the agent from the kept run with the person's answer. Otherwise the tool
+    /// does not run and the agent's model is told why.
+    /// </remarks>
+    /// <param name="services">The services of the request.</param>
+    /// <param name="agentProfile">The agent's profile.</param>
+    /// <param name="task">The task the caller gave the agent.</param>
+    /// <param name="callId">The id of the caller's tool call to the agent, or <see langword="null"/> when it is not known.</param>
+    /// <param name="functionInvocation">The caller's function invocation of this call, or <see langword="null"/> when the caller's tool-calling loop has none.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     private static async ValueTask<object> RunWithToolsAsync(
         IServiceProvider services,
         AIProfile agentProfile,
         string task,
+        string callId,
+        FunctionInvocationContext functionInvocation,
         CancellationToken cancellationToken)
     {
         var orchestrationContextBuilder = services.GetRequiredService<IOrchestrationContextBuilder>();
         var orchestratorResolver = services.GetRequiredService<IOrchestratorResolver>();
         var invocationContext = AIInvocationScope.Current;
         var callerDeploymentName = invocationContext.CompletionContext?.ChatDeploymentName;
+        var approvals = AgentToolApprovals.Get(invocationContext);
+
+        // The agent can ask only when its caller can show the request to a person and can come back to this very
+        // call with the answer.
+        var canAsk = approvals?.CanAsk == true && !string.IsNullOrEmpty(callId);
+
+        // A kept run is continued whether or not this run can ask again: starting the agent over would repeat the
+        // calls it made before it paused. A tool the person approved then gets the "not run" result if nobody can
+        // be asked now, and the agent reports that.
+        AgentRunResumption resumption = null;
+
+        if (approvals is not null && !string.IsNullOrEmpty(callId))
+        {
+            approvals.TryTakeResumption(callId, out resumption);
+        }
+
+        var run = resumption?.Run ?? new ChatTurnAgentRun
+        {
+            CallId = callId,
+            AgentName = agentProfile.Name,
+        };
+
+        // The title the person sees on the agent's approval requests. A run kept before the title existed gets it now.
+        run.AgentDisplayText ??= string.IsNullOrWhiteSpace(agentProfile.DisplayText) ? null : agentProfile.DisplayText;
 
         // Enter the sub-agent scope before building the context so that agent enrichment and
         // agent tools are suppressed for the agent's own orchestration.
@@ -181,9 +238,34 @@ internal sealed class AgentProxyTool : AIFunction
                         // Sub-agents never delegate to other agents.
                         ctx.CompletionContext.AgentNames = [];
                         InheritDeployment(ctx.CompletionContext, callerDeploymentName);
+                        AgentToolApprovals.ConfigureAgentContext(ctx.CompletionContext, canAsk);
                     }
                 },
                 cancellationToken);
+
+            if (resumption is not null)
+            {
+                // The agent goes on from what it did before it paused: the calls that ran are in the conversation
+                // with their results, so they are not made again, and the waiting calls come with the answers.
+                orchestrationContext.ConversationHistory = AgentRunHistory.BuildResumeHistory(task, resumption);
+
+                // That conversation is one task of the agent, not past messages of a chat: a limit on past messages
+                // must not cut the task or the agent's earlier calls off.
+                if (orchestrationContext.CompletionContext is not null)
+                {
+                    orchestrationContext.CompletionContext.PastMessagesCount = null;
+                }
+
+                // The tools of the answered calls must still be offered, whatever tool scoping picks this time.
+                foreach (var call in run.ToolCalls)
+                {
+                    if (call.Status is ChatTurnToolCallStatus.Approved or ChatTurnToolCallStatus.Rejected &&
+                        !orchestrationContext.MustIncludeTools.Contains(call.Name, StringComparer.OrdinalIgnoreCase))
+                    {
+                        orchestrationContext.MustIncludeTools.Add(call.Name);
+                    }
+                }
+            }
 
             var orchestrator = orchestratorResolver.Resolve(agentProfile.OrchestratorName);
 
@@ -198,6 +280,31 @@ internal sealed class AgentProxyTool : AIFunction
                 {
                     builder.Append(update.Text);
                 }
+
+                if (canAsk)
+                {
+                    AgentRunHistory.Record(run, update);
+                }
+            }
+
+            if (canAsk && run.HasPendingCalls)
+            {
+                approvals.Pause(
+                    new FunctionCallContent(callId, agentProfile.Name, new Dictionary<string, object> { ["prompt"] = task }),
+                    run);
+
+                // The caller's turn ends after this round of tool calls: the person answers first.
+                if (functionInvocation is not null)
+                {
+                    functionInvocation.Terminate = true;
+                }
+
+                return GetPausedMessage(
+                    agentProfile.Name,
+                    run.ToolCalls
+                        .Where(call => call.Status == ChatTurnToolCallStatus.AwaitingApproval)
+                        .Select(call => call.Name)
+                        .Distinct(StringComparer.OrdinalIgnoreCase));
             }
 
             var result = builder.ToString();

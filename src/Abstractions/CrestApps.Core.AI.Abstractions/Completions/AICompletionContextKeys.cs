@@ -96,7 +96,8 @@ public static class AICompletionContextKeys
     /// <summary>
     /// The key whose <see langword="true"/> value tells the tool pipeline that the caller can ask a person to
     /// approve a tool call, such as an AG-UI chat run. Tools that require an approval then pause the run for one
-    /// instead of running at once.
+    /// instead of running at once. When it is not set, such tools never run: each is replaced with one that does not
+    /// run and tells the model why.
     /// </summary>
     public const string ToolApprovalSupported = "ToolApprovalSupported";
 
