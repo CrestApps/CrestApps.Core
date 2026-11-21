@@ -398,6 +398,43 @@ public sealed class AIChatHubCoreTests
         Assert.DoesNotContain(events, e => e is AGUI.Abstractions.CustomEvent custom && custom.Name == AGUIChatTurn.MessageReplacedEventName);
     }
 
+    [Fact]
+    public async Task ProcessUtilityAsync_OnAnAGUIRun_StreamsEachChunkAsText()
+    {
+        var utility = new AIProfile { ItemId = "utility-1", Type = AIProfileType.Utility };
+        var hub = CreateTemplateHub(utility, utility, ["utility-1"], out _, out var services, configure: ConfigureGeneration(["Test", "ing", "."]));
+        var events = new List<AGUI.Abstractions.BaseEvent>();
+        var turn = CreateAGUITurn(events);
+
+        await hub.ProcessUtilityForTestAsync(turn, services, utility, "testing");
+
+        // Each chunk is its own piece of the one message. A second write for a message that already has text is how the
+        // chat replaces a message, and the client would then show only the last chunk ("." instead of "Testing.").
+        var deltas = events.OfType<AGUI.Abstractions.TextMessageContentEvent>().Select(e => e.Delta).ToList();
+        Assert.Equal(["Test", "ing", "."], deltas);
+        Assert.DoesNotContain(events, e => e is AGUI.Abstractions.CustomEvent custom && custom.Name == AGUIChatTurn.MessageReplacedEventName);
+    }
+
+    [Fact]
+    public async Task ProcessUtilityAsync_OnAChannel_WritesEachChunkAsAPartialMessage()
+    {
+        var utility = new AIProfile { ItemId = "utility-1", Type = AIProfileType.Utility };
+        var hub = CreateTemplateHub(utility, utility, ["utility-1"], out _, out var services, configure: ConfigureGeneration(["Test", "ing", "."]));
+        var channel = Channel.CreateUnbounded<CompletionPartialMessage>();
+
+        await hub.ProcessUtilityForTestAsync(channel.Writer, services, utility, "testing");
+        channel.Writer.Complete();
+
+        var messages = new List<CompletionPartialMessage>();
+        await foreach (var message in channel.Reader.ReadAllAsync(TestContext.Current.CancellationToken))
+        {
+            messages.Add(message);
+        }
+
+        Assert.Equal("Testing.", string.Concat(messages.Select(m => m.Content)));
+        Assert.Single(messages.Select(m => m.MessageId).Distinct());
+    }
+
     private static Action<IServiceCollection> ConfigureGeneration(string[] chunks)
     {
         return collection =>
@@ -1098,6 +1135,11 @@ public sealed class AIChatHubCoreTests
             GeneratedPromptParent = parentProfile;
 
             return Task.CompletedTask;
+        }
+
+        public Task ProcessUtilityForTestAsync(ChannelWriter<CompletionPartialMessage> writer, IServiceProvider services, AIProfile profile, string prompt)
+        {
+            return ProcessUtilityAsync(writer, services, profile, prompt, CancellationToken.None);
         }
 
         public Task SaveChatSessionForTestAsync(IServiceProvider services, IAIChatSessionManager sessionManager, AIChatSession chatSession)
