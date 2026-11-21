@@ -3373,6 +3373,16 @@ public class AIChatHubCore<TClient> : Hub<TClient>
                 continue;
             }
 
+            if (writer is AGUIChatTurn aguiTurn)
+            {
+                // An AG-UI turn takes each chunk as the next piece of the message. Written as a partial message it would
+                // be read as a replacement for the whole message after the first chunk, and the page would show only the
+                // last chunk of the reply.
+                await aguiTurn.Events.WriteTextAsync(messageId, chunk.Text, cancellationToken);
+
+                continue;
+            }
+
             var partialMessage = new CompletionPartialMessage
             {
                 MessageId = messageId,
