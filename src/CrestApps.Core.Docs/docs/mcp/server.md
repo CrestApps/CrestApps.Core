@@ -94,59 +94,48 @@ The MCP server framework:
 
 ## Server Endpoint Setup
 
-Use the [ModelContextProtocol SDK](https://github.com/modelcontextprotocol/csharp-sdk) to map the SSE endpoint and wire in your tool, prompt, and resource handlers:
+Use the [ModelContextProtocol SDK](https://github.com/modelcontextprotocol/csharp-sdk) to add the Streamable HTTP transport, plug in the CrestApps handlers for tools, prompts and resources with `WithCrestAppsHandlers()`, and map the endpoint:
 
 ```csharp
-app.MapMcpSse(mcpBuilder =>
+builder.Services.AddMcpServer(options =>
 {
-    mcpBuilder.WithHttpTransport(options =>
-    {
-        options.ServerInfo = new() { Name = "My MCP Server", Version = "1.0" };
-    });
+    options.ServerInfo = new() { Name = "My MCP Server", Version = "1.0" };
+})
+.WithHttpTransport(options =>
+{
+    options.SessionMode = HttpServerSessionMode.StatefulForInitializeClients;
+})
+.WithCrestAppsHandlers();
 
-    mcpBuilder.WithListToolsHandler(async (context, ct) =>
-    {
-        // Return your registered AI tools
-    });
+// ...
 
-    mcpBuilder.WithCallToolHandler(async (context, ct) =>
-    {
-        // Invoke a tool by name, delegate to your tool registry
-    });
+app.MapMcp("mcp");
+```
 
-    mcpBuilder.WithListPromptsHandler(async (context, ct) =>
-    {
-        var service = context.Services.GetRequiredService<IMcpServerPromptService>();
-        return new ListPromptsResult { Prompts = await service.ListAsync() };
-    });
+The endpoint answers `POST /mcp` for JSON-RPC messages, `GET /mcp` for the server-to-client event stream of a session, and `DELETE /mcp` to end a session.
 
-    mcpBuilder.WithGetPromptHandler(async (context, ct) =>
-    {
-        var service = context.Services.GetRequiredService<IMcpServerPromptService>();
-        return await service.GetAsync(context, ct);
-    });
+### Sessions
 
-    mcpBuilder.WithListResourcesHandler(async (context, ct) =>
-    {
-        var service = context.Services.GetRequiredService<IMcpServerResourceService>();
-        return new ListResourcesResult { Resources = await service.ListAsync() };
-    });
+The SDK defaults to `HttpServerSessionMode.Stateless`, which does not map `GET /mcp` and `DELETE /mcp`, so they answer `405 Method Not Allowed`. Pick the mode that fits your host:
 
-    mcpBuilder.WithListResourceTemplatesHandler(async (context, ct) =>
-    {
-        var service = context.Services.GetRequiredService<IMcpServerResourceService>();
-        return new ListResourceTemplatesResult
-        {
-            ResourceTemplates = await service.ListTemplatesAsync()
-        };
-    });
+| Mode | Behavior |
+| --- | --- |
+| `StatefulForInitializeClients` | Clients that use the `initialize` handshake get an `Mcp-Session-Id` and can use `GET` and `DELETE`. Clients on the `2026-07-28` revision or later are served without a session. The sample hosts use this mode. |
+| `Stateful` | Every client gets a session. Clients on the `2026-07-28` revision or later fall back to the `initialize` handshake. |
+| `Stateless` | No client gets a session, and `GET` and `DELETE` are not mapped. |
 
-    mcpBuilder.WithReadResourceHandler(async (context, ct) =>
-    {
-        var service = context.Services.GetRequiredService<IMcpServerResourceService>();
-        return await service.ReadAsync(context, ct);
-    });
-});
+A session lives in the memory of the process that created it. When the host runs on several nodes, either route a client's requests to the same node (session affinity) or use `Stateless`. The sample hosts read the mode from `CrestApps:AI:McpServer:SessionMode` in `appsettings.json`:
+
+```json
+{
+  "CrestApps": {
+    "AI": {
+      "McpServer": {
+        "SessionMode": "Stateless"
+      }
+    }
+  }
+}
 ```
 
 See the [MVC Example](../core/mvc-example.md) for a complete working server setup.
