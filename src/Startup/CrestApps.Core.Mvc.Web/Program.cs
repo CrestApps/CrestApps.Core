@@ -53,6 +53,7 @@ using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc.Authorization;
 using Microsoft.Extensions.Options;
+using ModelContextProtocol.AspNetCore;
 
 // =============================================================================
 // CrestApps AI Framework - MVC Example Application
@@ -259,7 +260,16 @@ _ = builder.Services.AddMcpServer(options =>
         Name = "CrestApps MVC MCP Server",
         Version = "1.0",
     };
-}).WithHttpTransport()
+}).WithHttpTransport(options =>
+{
+    // The SDK defaults to the stateless mode, which does not map GET and DELETE /mcp. Keep sessions for
+    // clients that use the initialize handshake so they can open the server-to-client stream and end their
+    // session; clients on the 2026-07-28 revision or later are still served statelessly. Set
+    // CrestApps:AI:McpServer:SessionMode to Stateless when the host runs on several nodes without session affinity.
+    options.SessionMode = builder.Configuration.GetValue(
+        "CrestApps:AI:McpServer:SessionMode",
+        HttpServerSessionMode.StatefulForInitializeClients);
+})
 .WithCrestAppsHandlers();
 
 builder.Services.AddCoreAITool<CalculatorTool>(CalculatorTool.TheName)
