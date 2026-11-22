@@ -317,7 +317,10 @@ app.UseHttpsRedirection()
     .UseAuthentication()
     .UseAuthorization();
 
-app.UseWhen(context => context.Request.Path.StartsWithSegments("/mcp"), branch =>
+// Only the MCP endpoint itself: the admin pages that manage MCP connections, prompts and resources also
+// start with an /mcp segment, and must keep using the normal sign-in. Routing sends /mcp/ to the endpoint too,
+// so trailing slashes are trimmed before comparing.
+app.UseWhen(context => string.Equals(context.Request.Path.Value?.TrimEnd('/'), "/mcp", StringComparison.OrdinalIgnoreCase), branch =>
 {
     branch.Use(async (context, next) =>
     {
