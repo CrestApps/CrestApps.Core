@@ -132,6 +132,14 @@
     margin-inline-end: auto;
 }
 
+/* While a call waits for an answer, the message's buttons (copy, read aloud) stay hidden: they sit at the
+   bottom right of the message, on top of Deny, and would take the click meant for it. */
+.ai-chat-messages .ai-chat-message-item:has(.ai-chat-agui-approval) .message-buttons-container,
+.ai-chat-messages .ai-chat-message-item:has(.ai-chat-agui-approval):hover .message-buttons-container,
+.ai-chat-messages .ai-chat-message-item:has(.ai-chat-agui-approval):focus-within .message-buttons-container {
+    opacity: 0;
+    pointer-events: none;
+}
 .ai-chat-message-heading {
     font-size: 0.75rem;
     margin-bottom: 0.35rem;

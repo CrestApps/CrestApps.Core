@@ -11,7 +11,7 @@ public sealed class ToolApprovalMetadata
     /// <see langword="false"/> (the default), each tool that requires an approval asks the person in the chat first,
     /// and never runs where nobody can be asked. When it is <see langword="true"/>, those tools run at once, also
     /// where nobody can be asked, such as an MCP client that calls an agent or a voice session. Only the approval is skipped: the
-    /// tools are still limited to the ones picked for the profile, and the access checks still apply.
+    /// tools are still limited to the ones picked for the profile, and the access checks are unchanged.
     /// </summary>
     public bool RunWithoutAsking { get; set; }
 }

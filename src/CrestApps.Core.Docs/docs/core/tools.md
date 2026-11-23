@@ -111,7 +111,8 @@ The MVC and Blazor sample hosts show it in the **AI Tools** section of the profi
 | Allow all tools without asking | Runs at once | Runs at once |
 
 - The setting belongs to one profile. An agent the profile calls uses the agent's own setting, whichever the calling profile has: `AIProfileCompletionContextBuilderHandler` sets `AICompletionContextKeys.RunToolsWithoutApproval` from each profile's own metadata, and removes it when the profile asks.
-- Only the approval is skipped. The profile still has only the tools picked for it, and a Chat Interaction still checks each listable tool with `IAIToolAccessEvaluator`.
+- Only the approval is skipped. The profile still has only the tools picked for it, and the access checks are unchanged: a Chat Interaction checks each listable tool it picked with `IAIToolAccessEvaluator`, and an AI Session runs the profile's tools as configured.
+- An agent's tools follow the agent, not the person who reaches it: a Chat Interaction that may pick the agent gets its tools, without a per-user check of each one. Control who can use an agent that runs its tools without asking.
 - The tool pipeline reads it with `AICompletionContext.RunsToolsWithoutApproval()`, and passes it to the tool materializer as `ToolMaterializationOptions.RunWithoutApproval`.
 - It does not change `ExposeAllTools` of the MCP server or WebMCP, nor the post-session tasks, where a tool that requires an approval never runs.
 - It covers the consequential WebMCP page tools too. With **Allow consequential page tools** off, an AG-UI chat run offers them with an approval; with the profile set to run its tools without asking, they run at once there. Where nobody can be asked, they are still left out unless **Allow consequential page tools** is on.
