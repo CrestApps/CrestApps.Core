@@ -1389,7 +1389,7 @@ else if (_model != null)
 
         SyncCheckboxSelections();
         _model.SelectedToolNames = await GetValidToolNamesAsync(_model.SelectedToolNames);
-        _model.SelectedAgentNames = await GetValidAgentNamesAsync(_model.SelectedAgentNames);
+        _model.SelectedAgentNames = await GetValidAgentNamesAsync(_model.SelectedAgentNames, existing.ItemId);
         _model.SelectedA2AConnectionIds = await GetValidA2AConnectionIdsAsync(_model.SelectedA2AConnectionIds);
         _model.SelectedMcpConnectionIds = await GetValidMcpConnectionIdsAsync(_model.SelectedMcpConnectionIds);
         _model.SelectedToolInstanceNames = await GetValidToolInstanceNamesAsync(_model.SelectedToolInstanceNames);
@@ -1703,7 +1703,8 @@ else if (_model != null)
 
         var allAgents = await ProfileManager.GetAsync(AIProfileType.Agent) ?? [];
         var selectedAgentNames = new HashSet<string>(_model.SelectedAgentNames ?? [], StringComparer.OrdinalIgnoreCase);
-        _model.AvailableAgents = allAgents.Where(a => a.IsUserSelectableAgent()).OrderBy(a => a.DisplayText ?? a.Name, StringComparer.OrdinalIgnoreCase)
+        // An agent is not offered to itself: the profile being edited is left out of its own list.
+        _model.AvailableAgents = allAgents.Where(a => a.IsUserSelectableAgent() && !IsProfile(a, _model.ItemId)).OrderBy(a => a.DisplayText ?? a.Name, StringComparer.OrdinalIgnoreCase)
             .Select(a => new AgentSelectionItem { Name = a.Name, DisplayText = a.DisplayText ?? a.Name, Description = a.Description, IsSelected = selectedAgentNames.Contains(a.Name) }).ToList();
 
         var allDataSources = await DataSourceStore.GetAllAsync();
@@ -1753,11 +1754,13 @@ else if (_model != null)
             .ToArray();
     }
 
-    private async Task<string[]> GetValidAgentNamesAsync(IEnumerable<string> selectedNames)
+    private async Task<string[]> GetValidAgentNamesAsync(IEnumerable<string> selectedNames, string profileItemId = null)
     {
         var allAgents = await ProfileManager.GetAsync(AIProfileType.Agent) ?? [];
+
+        // A profile cannot pick itself as one of its agents, even from a posted form.
         var validAgentNames = allAgents
-            .Where(agent => agent.IsUserSelectableAgent())
+            .Where(agent => agent.IsUserSelectableAgent() && !IsProfile(agent, profileItemId))
             .Select(agent => agent.Name)
             .Where(name => !string.IsNullOrWhiteSpace(name))
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
@@ -1766,6 +1769,13 @@ else if (_model != null)
             .Where(name => !string.IsNullOrWhiteSpace(name) && validAgentNames.Contains(name))
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToArray();
+    }
+
+    // Whether the agent is the profile with that id. A new profile has no id yet, so no agent is it.
+    private static bool IsProfile(AIProfile agent, string profileItemId)
+    {
+        return !string.IsNullOrEmpty(profileItemId) &&
+            string.Equals(agent.ItemId, profileItemId, StringComparison.Ordinal);
     }
 
     private async Task<string[]> GetValidA2AConnectionIdsAsync(IEnumerable<string> selectedIds)
