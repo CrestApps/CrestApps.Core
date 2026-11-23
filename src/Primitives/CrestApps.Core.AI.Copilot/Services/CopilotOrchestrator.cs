@@ -95,7 +95,7 @@ public sealed class CopilotOrchestrator : IOrchestrator
         // Build AIFunction instances from non-MCP registry entries only.
         // MCP tools are excluded because Copilot manages MCP connections natively.
         var tools = new List<AIFunction>();
-        var runWithoutApproval = context.CompletionContext.RunsToolsWithoutApproval();
+        var approvalOptions = new ToolMaterializationOptions { ApprovalPolicy = context.CompletionContext.GetToolApprovalPolicy() };
 
         foreach (var entry in allTools)
         {
@@ -109,18 +109,18 @@ public sealed class CopilotOrchestrator : IOrchestrator
                 var aiTool = context.ServiceProvider is not null ? await entry.CreateAsync(context.ServiceProvider) : null;
 
                 // This orchestrator cannot pause for an approval. A tool that requires one is replaced with a tool
-                // that does not run it and tells the model why, so it never runs unasked, unless the profile was set
-                // to run its tools without asking.
-                if (aiTool is not null && entry.RequiresApproval && !runWithoutApproval)
+                // that does not run it and tells the model why, so it never runs unasked. The exception is a tool the
+                // approval policy lets run without asking: it runs, and each call is logged and counted.
+                if (aiTool is not null && entry.RequiresApproval)
                 {
-                    if (_logger.IsEnabled(LogLevel.Debug))
+                    if (_logger.IsEnabled(LogLevel.Debug) && approvalOptions.ApprovalPolicy?.RunsWithoutAsking(entry) != true)
                     {
                         _logger.LogDebug(
                             "The tool '{ToolName}' requires an approval, which the Copilot orchestrator cannot ask for. It is offered as a tool that does not run.",
                             entry.Name);
                     }
 
-                    aiTool = DefaultToolMaterializer.WrapForApproval(aiTool, entry, ToolMaterializationOptions.Default);
+                    aiTool = DefaultToolMaterializer.WrapForApproval(aiTool, entry, approvalOptions, _logger);
                 }
 
                 if (aiTool is AIFunction function)

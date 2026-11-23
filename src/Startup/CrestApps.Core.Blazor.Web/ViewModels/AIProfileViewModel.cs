@@ -476,7 +476,7 @@ public sealed class AIProfileViewModel
             vm.SelectedToolNames = toolMetadata.Names ?? [];
         }
 
-        vm.RunToolsWithoutAsking = profile.TryGet<ToolApprovalMetadata>(out var toolApprovalMetadata) && toolApprovalMetadata.RunWithoutAsking;
+        vm.RunToolsWithoutAsking = profile.TryGetSettings<AIToolApprovalSettings>(out var toolApprovalSettings) && toolApprovalSettings.RunsAllWithoutAsking();
 
         if (profile.TryGet<AgentInvocationMetadata>(out var agentMetadata))
         {
@@ -696,9 +696,9 @@ public sealed class AIProfileViewModel
             x.Names = toolNames?.Length > 0 ? toolNames : null;
         });
 
-        profile.Alter<ToolApprovalMetadata>(x =>
+        profile.AlterSettings<AIToolApprovalSettings>(x =>
         {
-            x.RunWithoutAsking = RunToolsWithoutAsking;
+            x.SetRunAllWithoutAsking(RunToolsWithoutAsking);
         });
 
         profile.Alter<AIProfileA2AMetadata>(a =>

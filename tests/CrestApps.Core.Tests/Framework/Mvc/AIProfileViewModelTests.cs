@@ -271,7 +271,7 @@ public sealed class AIProfileViewModelTests
 
         new AIProfileViewModel { RunToolsWithoutAsking = runWithoutAsking }.ApplyTo(profile);
 
-        Assert.Equal(runWithoutAsking, profile.GetOrCreate<ToolApprovalMetadata>().RunWithoutAsking);
+        Assert.Equal(runWithoutAsking, profile.TryGetSettings<AIToolApprovalSettings>(out var settings) && settings.RunsAllWithoutAsking());
         Assert.Equal(runWithoutAsking, AIProfileViewModel.FromProfile(profile).RunToolsWithoutAsking);
     }
 

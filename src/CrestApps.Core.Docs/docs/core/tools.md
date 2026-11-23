@@ -97,27 +97,39 @@ A tool registered without a kind has `AIToolKind.Unspecified` and behaves as bef
 
 ### Running a Profile's Tools Without Asking
 
-A profile can be set to run its tools without asking, with `ToolApprovalMetadata`:
+A profile's `AIToolApprovalSettings` (stored in `AIProfile.Settings`) can let the tools that require an approval because of their kind run without asking. A rule per kind sets the `ToolApprovalMode`:
 
 ```csharp
-profile.Put(new ToolApprovalMetadata { RunWithoutAsking = true });
+profile.AlterSettings<AIToolApprovalSettings>(settings =>
+{
+    settings.Kinds[nameof(AIToolKind.External)] = new ToolApprovalRule { Mode = ToolApprovalMode.Never };
+});
+
+// Or every kind that requires an approval (Destructive, External and Security):
+profile.AlterSettings<AIToolApprovalSettings>(settings => settings.SetRunAllWithoutAsking(true));
 ```
 
-The MVC and Blazor sample hosts show it in the **AI Tools** section of the profile editor's **Capabilities** tab, as **Tool approval**: **Ask for approval (recommended)**, the default, or **Allow all tools without asking**.
+| Mode | What it does |
+|---|---|
+| `EveryCall` (the default, and a kind with no rule) | Asks before every call. |
+| `OncePerSession` | Reserved for session grants. Until they exist, it asks before every call. |
+| `Never` | Runs without asking. Each call is logged at Information level and counted in `AITelemetry.ToolAutoApprovals`. |
 
-| Setting | A tool that requires an approval, where a person can be asked (an AG-UI chat run) | Where nobody can be asked (see [Callers that cannot be asked](#callers-that-cannot-be-asked)) |
+The MVC and Blazor sample hosts show it in the **AI Tools** section of the profile editor's **Capabilities** tab, as **Tool approval**: **Ask for approval (recommended)**, the default, or **Allow all tools without asking** (`Never` for Destructive, External and Security).
+
+| Setting | A tool that requires an approval because of its kind, where a person can be asked (an AG-UI chat run) | Where nobody can be asked (see [Callers that cannot be asked](#callers-that-cannot-be-asked)) |
 |---|---|---|
 | Ask for approval (default) | Asks first: **Allow** or **Deny** | Does not run, and the model is told why |
 | Allow all tools without asking | Runs at once | Runs at once |
 
-- The setting belongs to one profile. An agent the profile calls uses the agent's own setting, whichever the calling profile has: `AIProfileCompletionContextBuilderHandler` sets `AICompletionContextKeys.RunToolsWithoutApproval` from each profile's own metadata, and removes it when the profile asks.
-- Only the approval is skipped. The profile still has only the tools picked for it, and the access checks are unchanged: a Chat Interaction checks each listable tool it picked with `IAIToolAccessEvaluator`, and an AI Session runs the profile's tools as configured.
-- An agent's tools follow the agent, not the person who reaches it: a Chat Interaction that may pick the agent gets its tools, without a per-user check of each one. Control who can use an agent that runs its tools without asking.
-- The tool pipeline reads it with `AICompletionContext.RunsToolsWithoutApproval()`, and passes it to the tool materializer as `ToolMaterializationOptions.RunWithoutApproval`.
+- **A tool's own floor is never lowered.** A tool registered with an explicit `.RequireApproval()` (`AIToolDefinitionEntry.RequiresApprovalExplicit`), and a consequential WebMCP page tool while **Allow consequential page tools** is off, have an approval floor (`ToolRegistryEntry.ApprovalFloor`): they ask, whatever the profile says.
+- **Inside an agent, the stricter side wins.** A call an agent makes runs without asking only when both the agent's profile and the profile that calls it allow it (`ToolApprovalPolicy.ForAgent`). An agent set to Allow all still asks when its caller asks, so one shared or always-available agent cannot take approvals away from the profiles that use it. A caller with no profile, such as an MCP client that calls the agent directly, allows nothing.
+- **Each call is audited.** A tool that runs without asking is wrapped so that every call writes an Information log (the tool, its kind, whether an agent made the call, and the chat session) and adds to the `crestapps.core.ai.tool.auto_approved` counter, tagged with the reason, the tool kind and whether an agent made the call. A tool that is not an `AIFunction` cannot be audited, so it is still left out.
+- **Only the approval is skipped.** The profile still has only the tools picked for it, and the access checks are unchanged: a Chat Interaction checks each listable tool it picked with `IAIToolAccessEvaluator`, and an AI Session runs the profile's tools as configured. An agent's tools follow the agent, not the person who reaches it, so control who can use an agent that runs its tools without asking.
+- `AIProfileCompletionContextBuilderHandler` resolves each profile's settings into a `ToolApprovalPolicy` under `AICompletionContextKeys.ToolApprovalPolicy` (read it with `GetToolApprovalPolicy()`), and the tool pipeline passes it to the tool materializer as `ToolMaterializationOptions.ApprovalPolicy`.
 - It does not change `ExposeAllTools` of the MCP server or WebMCP, nor the post-session tasks, where a tool that requires an approval never runs.
-- It covers the consequential WebMCP page tools too. With **Allow consequential page tools** off, an AG-UI chat run offers them with an approval; with the profile set to run its tools without asking, they run at once there. Where nobody can be asked, they are still left out unless **Allow consequential page tools** is on.
 
-Turn it on only for a profile whose tools are safe to run unchecked wherever the profile is used: with it, a tool that sends, changes or deletes things also runs for a caller that nobody watches.
+Turn it on only for a profile whose tools are safe to run unchecked wherever the profile is used: with it, a tool that sends, changes or deletes things also runs for a caller that nobody watches, and content the model reads (a document, a web page, an email) can lead it to call one.
 
 #### Callers that cannot be asked
 
@@ -125,7 +137,7 @@ An approval needs a person who can click **Allow** or **Deny**. These callers ha
 
 | Caller | What it is | Ask for approval (default) | Allow all tools without asking |
 |---|---|---|---|
-| MCP client calling an agent | Another app, such as VS Code or Claude Desktop, calls one of your agents through the [MCP server](../mcp/server.md) | The agent's tools that require an approval do not run | They run |
+| MCP client calling an agent | Another app, such as VS Code or Claude Desktop, calls one of your agents through the [MCP server](../mcp/server.md) | The agent's tools that require an approval do not run | Still do not run: there is no calling profile, and inside an agent the stricter side wins |
 | MCP client calling a tool | The MCP server exposes a tool itself, not through a profile | The profile setting does not apply. `ExposeAllTools` leaves the tool out; a tool named in the `Tools` list runs, because naming it is the host's decision | Same |
 | A2A client | Another AI agent calls one of your agents through the [A2A host](../a2a/host.md) | The sample hosts' A2A host runs the agent with its tools turned off, so no tool runs. A host that turns them on follows this table | Same in the sample hosts: no tool runs |
 | A2A connection | Your profile calls a remote agent, picked on the Capabilities tab | The remote agent runs on its own system, under that system's rules | Same |

@@ -118,6 +118,12 @@
     word-break: break-word;
 }
 
+/* A long value, such as the whole body of an email waiting for approval, scrolls inside the card. */
+.ai-chat-agui-tool-value {
+    max-height: 12rem;
+    overflow: auto;
+}
+
 .ai-chat-agui-approval {
     display: flex;
     flex-wrap: wrap;

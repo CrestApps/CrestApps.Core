@@ -230,7 +230,7 @@ public sealed class ClaudeOrchestrator : IOrchestrator
             {
                 EnforceListableAccess = isChatInteraction,
                 User = isChatInteraction ? _userAccessor.User : null,
-                RunWithoutApproval = completionContext.RunsToolsWithoutApproval(),
+                ApprovalPolicy = completionContext.GetToolApprovalPolicy(),
             },
             cancellationToken);
 

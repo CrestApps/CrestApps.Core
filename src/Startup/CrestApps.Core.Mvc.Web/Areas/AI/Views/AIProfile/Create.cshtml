@@ -1,4 +1,4 @@
-@using CrestApps.Core.AI.Documents.Models
+﻿@using CrestApps.Core.AI.Documents.Models
 @using CrestApps.Core.Mvc.Web.Areas.AI.ViewModels
 @using CrestApps.Core.AI.Models
 @using CrestApps.Core.Mvc.Web.Services
@@ -633,7 +633,7 @@
                             <option value="False">Ask for approval (recommended)</option>
                             <option value="True">Allow all tools without asking</option>
                         </select>
-                        <div class="form-text">Applies only to the tools selected on this tab. Ask for approval shows Allow and Deny before a tool runs.</div>
+                        <div class="form-text">Ask for approval shows Allow and Deny before a tool that sends, changes or deletes something runs. Allow all skips that, except for tools that always ask. An agent's tools skip it only when the agent and the profile calling it both allow all.</div>
                     </div>
                     @if (Model.AvailableTools.Count == 0)
                     {

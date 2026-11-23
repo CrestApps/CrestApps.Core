@@ -58,6 +58,14 @@ public sealed class ToolRegistryEntry
     public bool RequiresApproval { get; set; }
 
     /// <summary>
+    /// Gets or sets the least strict approval the tool's own registration allows, or <see langword="null"/> when
+    /// it has none. A tool registered with an explicit <c>.RequireApproval()</c>, and a consequential WebMCP page
+    /// tool, have <see cref="ToolApprovalMode.EveryCall"/>: a profile's approval policy never lets such a tool run
+    /// without asking. A tool that requires an approval only because of its <see cref="Kind"/> has none.
+    /// </summary>
+    public ToolApprovalMode? ApprovalFloor { get; set; }
+
+    /// <summary>
     /// Gets or sets what the tool does to the application's data and to the outside world, when its registration
     /// says so. Tools from sources that carry no kind, such as MCP servers and agents, keep
     /// <see cref="AIToolKind.Unspecified"/>.

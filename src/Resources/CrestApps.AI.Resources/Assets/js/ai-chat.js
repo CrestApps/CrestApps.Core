@@ -559,8 +559,10 @@ window.coreAIChatManager = function () {
     }
 
     // Shows a call's input as labeled fields when it is a plain object, so a person reads "To", "Subject" and
-    // "Message" instead of JSON. Anything else (an array, text that is not JSON) keeps the raw view.
-    function formatToolFields(text) {
+    // "Message" instead of JSON. Anything else (an array, text that is not JSON) keeps the raw view. Each value is
+    // cut at maxLength characters; a call that waits for an approval passes Infinity, so the person approves what
+    // they read in full.
+    function formatToolFields(text, maxLength) {
         const parsed = parseToolArguments(text);
 
         if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
@@ -573,8 +575,8 @@ window.coreAIChatManager = function () {
                 ? JSON.stringify(value)
                 : String(value ?? '');
 
-            return '<tr><th scope="row">' + escapeHtmlText(humanizeName(key)) + '</th><td>' +
-                escapeHtmlText(shown.length > 2000 ? shown.slice(0, 2000) + '…' : shown) + '</td></tr>';
+            return '<tr><th scope="row">' + escapeHtmlText(humanizeName(key)) + '</th><td><div class="ai-chat-agui-tool-value">' +
+                escapeHtmlText(shown.length > maxLength ? shown.slice(0, maxLength) + '…' : shown) + '</div></td></tr>';
         });
 
         return rows.length
@@ -659,12 +661,15 @@ window.coreAIChatManager = function () {
             let details = '';
 
             if (call.arguments && call.arguments !== '{}') {
-                const fields = formatToolFields(call.arguments);
+                // A call that waits for an approval shows its whole input: the person must not approve text they
+                // could not read. Long values scroll inside the card instead.
+                const inputLimit = status === 'awaitingApproval' ? Infinity : 2000;
+                const fields = formatToolFields(call.arguments, inputLimit);
 
                 details += fields
                     ? '<div class="ai-chat-agui-tool-section">' + fields + '</div>'
                     : '<div class="ai-chat-agui-tool-section"><div class="ai-chat-agui-tool-section-label">' + escapeHtmlText(defaultConfig.aguiInputLabel) +
-                        '</div><pre>' + escapeHtmlText(formatToolText(call.arguments, 2000)) + '</pre></div>';
+                        '</div><pre>' + escapeHtmlText(formatToolText(call.arguments, inputLimit)) + '</pre></div>';
             }
 
             if (call.result) {

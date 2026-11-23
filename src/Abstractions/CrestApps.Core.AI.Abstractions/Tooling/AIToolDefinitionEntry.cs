@@ -92,6 +92,13 @@ public sealed class AIToolDefinitionEntry
     }
 
     /// <summary>
+    /// Gets the value the registration set explicitly with <c>.RequireApproval(...)</c>, or <see langword="null"/>
+    /// when it follows from <see cref="Kind"/>. An explicit <see langword="true"/> is the tool's approval floor: a
+    /// profile's approval policy never lets the tool run without asking.
+    /// </summary>
+    public bool? RequiresApprovalExplicit => _requiresApproval;
+
+    /// <summary>
     /// Gets the registered tool dependencies that should be included when this tool is selected.
     /// Missing dependencies are ignored by dependency expansion helpers.
     /// </summary>

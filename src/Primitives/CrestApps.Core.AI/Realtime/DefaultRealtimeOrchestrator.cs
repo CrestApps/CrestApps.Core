@@ -528,7 +528,8 @@ public sealed class DefaultRealtimeOrchestrator : IRealtimeOrchestrator
 
         // A voice session cannot ask for an approval, so a tool that requires one does not run, unless the profile was
         // set to run its tools without asking.
-        var options = context.CompletionContext.RunsToolsWithoutApproval() ? new ToolMaterializationOptions { RunWithoutApproval = true } : ToolMaterializationOptions.Default;
+        var approvalPolicy = context.CompletionContext.GetToolApprovalPolicy();
+        var options = approvalPolicy is null ? ToolMaterializationOptions.Default : new ToolMaterializationOptions { ApprovalPolicy = approvalPolicy };
 
         var result = await _toolMaterializer.MaterializeAsync(entries, options, cancellationToken);
 

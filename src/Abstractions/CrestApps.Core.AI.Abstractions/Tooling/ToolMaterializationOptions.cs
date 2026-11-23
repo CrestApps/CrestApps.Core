@@ -39,10 +39,10 @@ public sealed class ToolMaterializationOptions
     public bool SupportsToolApproval { get; init; }
 
     /// <summary>
-    /// Gets a value indicating whether the tools whose entry sets
-    /// <see cref="Models.ToolRegistryEntry.RequiresApproval"/> run without asking anyone, because the profile was set
-    /// to run its tools without asking. They are offered as they are: neither wrapped for an approval nor replaced,
-    /// whether the caller can ask or not. Only the approval is skipped: the access checks still apply.
+    /// Gets the approval policy of the request, or <see langword="null"/> when every call that requires an approval
+    /// asks. A tool the policy lets run without asking (see <see cref="ToolApprovalPolicy.RunsWithoutAsking"/>) is
+    /// neither wrapped for an approval nor replaced, whether the caller can ask or not: it runs, and each call is
+    /// logged and counted. Only the approval is skipped; the access checks are unchanged.
     /// </summary>
-    public bool RunWithoutApproval { get; init; }
+    public ToolApprovalPolicy ApprovalPolicy { get; init; }
 }

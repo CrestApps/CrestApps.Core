@@ -40,10 +40,33 @@ public sealed class AgentToolApprovalTests
         Assert.Contains(updates.SelectMany(update => update.Contents), content => content is ToolApprovalRequestContent);
     }
 
-    [Fact]
-    public async Task AnAgentSetToRunWithoutAsking_RunsItsToolWithoutAnApproval_EvenWhenThePersonCouldBeAsked()
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    public async Task AToolInsideAnAgent_StillAsks_UnlessBothTheCallerAndTheAgentAllowAll(bool callerAllowsAll, bool agentAllowsAll)
     {
-        using var harness = new AgentApprovalTestHarness();
+        using var harness = new AgentApprovalTestHarness { AssistantRunsToolsWithoutAsking = callerAllowsAll };
+        using var scope = AIInvocationScope.Begin();
+
+        harness.AgentContexts.RunsToolsWithoutAsking = agentAllowsAll;
+
+        var updates = await harness.RunAssistantAsync(
+            scope.Context,
+            [new ChatMessage(ChatRole.User, AgentApprovalTestHarness.Prompt)],
+            supportsApproval: true);
+
+        // The stricter side wins: an agent set to Allow all does not take the approval away from a caller that asks,
+        // and a caller set to Allow all does not take it away from an agent that asks.
+        Assert.Null(Assert.Single(harness.AgentContexts.Built).CompletionContext.GetToolApprovalPolicy());
+        Assert.Equal(0, harness.DeleteTool.CallCount);
+        Assert.Contains(updates.SelectMany(update => update.Contents), content => content is ToolApprovalRequestContent);
+    }
+
+    [Fact]
+    public async Task AToolInsideAnAgent_RunsWithoutAnApproval_WhenTheCallerAndTheAgentBothAllowAll()
+    {
+        using var harness = new AgentApprovalTestHarness { AssistantRunsToolsWithoutAsking = true };
         using var scope = AIInvocationScope.Begin();
 
         harness.AgentContexts.RunsToolsWithoutAsking = true;
@@ -53,25 +76,28 @@ public sealed class AgentToolApprovalTests
             [new ChatMessage(ChatRole.User, AgentApprovalTestHarness.Prompt)],
             supportsApproval: true);
 
+        Assert.NotNull(Assert.Single(harness.AgentContexts.Built).CompletionContext.GetToolApprovalPolicy());
         Assert.Equal(1, harness.DeleteTool.CallCount);
         Assert.DoesNotContain(updates.SelectMany(update => update.Contents), content => content is ToolApprovalRequestContent);
     }
 
     [Fact]
-    public async Task AnAssistantSetToRunWithoutAsking_DoesNotPassItsChoiceToTheAgent()
+    public async Task AnAgentSetToAllowAll_StillDoesNotRunItsTool_WhenThereIsNoCallingProfile()
     {
-        using var harness = new AgentApprovalTestHarness { AssistantRunsToolsWithoutAsking = true };
+        using var harness = new AgentApprovalTestHarness();
         using var scope = AIInvocationScope.Begin();
 
-        var updates = await harness.RunAssistantAsync(
-            scope.Context,
-            [new ChatMessage(ChatRole.User, AgentApprovalTestHarness.Prompt)],
-            supportsApproval: true);
+        harness.AgentContexts.RunsToolsWithoutAsking = true;
 
-        // The agent asks, as its own profile says: the assistant's choice is for the assistant's own tools.
-        Assert.False(Assert.Single(harness.AgentContexts.Built).CompletionContext.RunsToolsWithoutApproval());
+        // An MCP client that calls the agent directly: no calling profile, and nobody can be asked.
+        var agent = new AgentProxyTool(AgentApprovalTestHarness.AgentName, "Deletes content.");
+        var result = await agent.InvokeAsync(
+            new AIFunctionArguments(new Dictionary<string, object> { ["prompt"] = AgentApprovalTestHarness.Prompt }) { Services = harness.Services },
+            TestContext.Current.CancellationToken);
+
+        Assert.Null(Assert.Single(harness.AgentContexts.Built).CompletionContext.GetToolApprovalPolicy());
         Assert.Equal(0, harness.DeleteTool.CallCount);
-        Assert.Contains(updates.SelectMany(update => update.Contents), content => content is ToolApprovalRequestContent);
+        Assert.NotNull(result);
     }
 
     [Fact]
@@ -168,6 +194,28 @@ public sealed class AgentToolApprovalTests
         Assert.Equal(AgentCallId, agentCall.CallId);
         Assert.Equal(ChatTurnToolCallStatus.Completed, agentCall.Status);
         Assert.Equal("The delete tool answered: Deleted item 7.", agentCall.Result);
+        Assert.Empty(resumed.Activity.AgentRuns);
+        Assert.IsType<RunFinishedSuccessOutcome>(Assert.IsType<RunFinishedEvent>(resumed.Events[^1]).Outcome);
+    }
+
+    [Theory]
+    [InlineData(true, 1)]
+    [InlineData(false, 0)]
+    public async Task TheAnswer_StillDecides_WhenBothProfilesWereSetToAllowAllWhileTheCardWaited(bool approved, int expectedDeletes)
+    {
+        using var harness = new AgentApprovalTestHarness();
+        var paused = await RunFirstTurnAsync(harness);
+
+        // While the card waits, the admin sets both the assistant's profile and the agent's to Allow all. The
+        // resumed call is no longer wrapped for an approval, but the person's answer to the waiting call still
+        // decides it, and the tool runs at most once.
+        harness.AssistantRunsToolsWithoutAsking = true;
+        harness.AgentContexts.RunsToolsWithoutAsking = true;
+
+        var resumed = await ResumeAsync(harness, paused, approved);
+
+        Assert.Equal(expectedDeletes, harness.DeleteTool.CallCount);
+        Assert.Equal(1, harness.ListTool.CallCount);
         Assert.Empty(resumed.Activity.AgentRuns);
         Assert.IsType<RunFinishedSuccessOutcome>(Assert.IsType<RunFinishedEvent>(resumed.Events[^1]).Outcome);
     }

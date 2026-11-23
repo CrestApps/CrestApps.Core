@@ -364,13 +364,13 @@
 			if (!words.length) return "";
 			return words[0].charAt(0).toUpperCase() + words[0].slice(1) + (words.length > 1 ? " " + words.slice(1).join(" ") : "");
 		}
-		function formatToolFields(text) {
+		function formatToolFields(text, maxLength) {
 			const parsed = parseToolArguments(text);
 			if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) return null;
 			const rows = Object.keys(parsed).map((key) => {
 				const value = parsed[key];
 				const shown = value !== null && typeof value === "object" ? JSON.stringify(value) : String(value ?? "");
-				return "<tr><th scope=\"row\">" + escapeHtmlText(humanizeName(key)) + "</th><td>" + escapeHtmlText(shown.length > 2e3 ? shown.slice(0, 2e3) + "…" : shown) + "</td></tr>";
+				return "<tr><th scope=\"row\">" + escapeHtmlText(humanizeName(key)) + "</th><td><div class=\"ai-chat-agui-tool-value\">" + escapeHtmlText(shown.length > maxLength ? shown.slice(0, maxLength) + "…" : shown) + "</div></td></tr>";
 			});
 			return rows.length ? "<table class=\"ai-chat-agui-tool-fields\"><tbody>" + rows.join("") + "</tbody></table>" : null;
 		}
@@ -418,8 +418,9 @@
 				}
 				let details = "";
 				if (call.arguments && call.arguments !== "{}") {
-					const fields = formatToolFields(call.arguments);
-					details += fields ? "<div class=\"ai-chat-agui-tool-section\">" + fields + "</div>" : "<div class=\"ai-chat-agui-tool-section\"><div class=\"ai-chat-agui-tool-section-label\">" + escapeHtmlText(defaultConfig.aguiInputLabel) + "</div><pre>" + escapeHtmlText(formatToolText(call.arguments, 2e3)) + "</pre></div>";
+					const inputLimit = status === "awaitingApproval" ? Infinity : 2e3;
+					const fields = formatToolFields(call.arguments, inputLimit);
+					details += fields ? "<div class=\"ai-chat-agui-tool-section\">" + fields + "</div>" : "<div class=\"ai-chat-agui-tool-section\"><div class=\"ai-chat-agui-tool-section-label\">" + escapeHtmlText(defaultConfig.aguiInputLabel) + "</div><pre>" + escapeHtmlText(formatToolText(call.arguments, inputLimit)) + "</pre></div>";
 				}
 				if (call.result) details += "<div class=\"ai-chat-agui-tool-section\"><div class=\"ai-chat-agui-tool-section-label\">" + escapeHtmlText(defaultConfig.aguiResultLabel) + "</div><pre>" + escapeHtmlText(formatToolText(call.result, 2e3)) + "</pre></div>";
 				const agentLabel = call.agentName ? call.agentDisplayText || describeToolCall({ name: call.agentName }) : "";

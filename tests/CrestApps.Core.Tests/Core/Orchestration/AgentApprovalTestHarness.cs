@@ -25,8 +25,8 @@ namespace CrestApps.Core.Tests.Core.Orchestration;
 /// <summary>
 /// Runs an assistant that delegates to an agent through the real pipeline (the default orchestrator, the tool
 /// registry, the tool materializer, a named completion client and the function-invoking chat client), with a
-/// scripted model in place of a provider. The agent has a tool that reads (<c>list_items</c>) and a tool
-/// registered with <c>RequireApproval()</c> (<c>delete_item</c>).
+/// scripted model in place of a provider. The agent has a tool that reads (<c>list_items</c>) and a destructive tool
+/// (<c>delete_item</c>), which requires an approval because of its kind, so an approval policy can lower it.
 /// </summary>
 internal sealed class AgentApprovalTestHarness : IDisposable
 {
@@ -48,7 +48,7 @@ internal sealed class AgentApprovalTestHarness : IDisposable
         services.AddSingleton(typeof(ILogger<>), typeof(NullLogger<>));
 
         services.AddCoreAITool<ListItemsTool>(ListItemsTool.TheName).Selectable();
-        services.AddCoreAITool<DeleteItemTool>(DeleteItemTool.TheName).RequireApproval().Selectable();
+        services.AddCoreAITool<DeleteItemTool>(DeleteItemTool.TheName).AsDestructive().Selectable();
 
         var agent = new AIProfile
         {
@@ -152,6 +152,18 @@ internal sealed class AgentApprovalTestHarness : IDisposable
     public bool AssistantRunsToolsWithoutAsking { get; set; }
 
     /// <summary>
+    /// Creates the approval policy of a profile set to run every tool kind that requires an approval without asking.
+    /// </summary>
+    /// <returns>The policy.</returns>
+    public static ToolApprovalPolicy CreateAllowAllPolicy()
+    {
+        var settings = new AIToolApprovalSettings();
+        settings.SetRunAllWithoutAsking(true);
+
+        return ToolApprovalPolicy.FromSettings(settings);
+    }
+
+    /// <summary>
     /// Creates the orchestration context of the assistant's turn: a profile that has the agent and no tools of
     /// its own.
     /// </summary>
@@ -173,7 +185,7 @@ internal sealed class AgentApprovalTestHarness : IDisposable
 
         if (AssistantRunsToolsWithoutAsking)
         {
-            completionContext.AdditionalProperties[AICompletionContextKeys.RunToolsWithoutApproval] = true;
+            completionContext.SetToolApprovalPolicy(CreateAllowAllPolicy());
         }
 
         return new OrchestrationContext
@@ -374,7 +386,8 @@ internal sealed class AgentApprovalTestHarness : IDisposable
 
             if (RunsToolsWithoutAsking)
             {
-                context.CompletionContext.AdditionalProperties[AICompletionContextKeys.RunToolsWithoutApproval] = true;
+                // The agent profile's own policy, as the profile handler sets it before configure runs.
+                context.CompletionContext.SetToolApprovalPolicy(CreateAllowAllPolicy());
             }
 
             configure?.Invoke(context);

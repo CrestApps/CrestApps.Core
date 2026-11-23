@@ -1,6 +1,7 @@
 using CrestApps.Core.AI.Models;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 
 namespace CrestApps.Core.AI.Tooling;
@@ -131,7 +132,7 @@ public sealed class DefaultToolMaterializer : IToolMaterializer
                     continue;
                 }
 
-                var offered = WrapForApproval(tool, entry, options);
+                var offered = WrapForApproval(tool, entry, options, _logger);
 
                 if (offered is null)
                 {
@@ -153,13 +154,6 @@ public sealed class DefaultToolMaterializer : IToolMaterializer
                             "Tool '{ToolName}' from {Source} ({Id}) requires approval and the caller cannot ask for one. It is offered as a tool that does not run.",
                             entry.Name, entry.Source, entry.Id);
                     }
-                }
-
-                else if (entry.RequiresApproval && options.RunWithoutApproval && _logger.IsEnabled(LogLevel.Debug))
-                {
-                    _logger.LogDebug(
-                        "Tool '{ToolName}' from {Source} ({Id}) requires approval and runs without asking, because the profile was set to run its tools without asking.",
-                        entry.Name, entry.Source, entry.Id);
                 }
 
                 if (offered is not null)
@@ -184,30 +178,31 @@ public sealed class DefaultToolMaterializer : IToolMaterializer
     /// Prepares a tool that requires an approval for the request. When the caller can ask a person, the tool is
     /// wrapped in <see cref="ApprovalRequiredAIFunction"/>, so the function invocation pauses for the approval instead
     /// of running it. When the caller cannot ask, the tool never runs: it is replaced with a function of the same
-    /// name and schema that does not run it and tells the model why, so the model can tell the user. A tool that does
-    /// not require an approval, or that runs without asking because <see cref="ToolMaterializationOptions.RunWithoutApproval"/>
-    /// is set, is returned as it is.
+    /// name and schema that does not run it and tells the model why, so the model can tell the user. When the
+    /// request's approval policy lets the tool run without asking (see <see cref="ToolApprovalPolicy.RunsWithoutAsking"/>),
+    /// it is wrapped in <see cref="AutoApprovedAIFunction"/>, which runs it and logs and counts each call. A tool that
+    /// does not require an approval is returned as it is.
     /// </summary>
     /// <param name="tool">The materialized tool.</param>
     /// <param name="entry">The registry entry the tool came from.</param>
     /// <param name="options">The materialization options.</param>
+    /// <param name="logger">The logger the calls that run without asking are logged to.</param>
     /// <returns>
     /// The tool to offer, or <see langword="null"/> when the tool must be approved and is not an
-    /// <see cref="AIFunction"/>: such a tool can be neither wrapped for an approval nor replaced, so it is left out,
-    /// whether the caller can ask or not.
+    /// <see cref="AIFunction"/>: such a tool can be neither wrapped for an approval nor replaced, nor audited when it
+    /// runs without asking, so it is left out, whatever the caller and the policy.
     /// </returns>
 #pragma warning disable MEAI001 // ApprovalRequiredAIFunction is a preview API of Microsoft.Extensions.AI.
-    internal static AITool WrapForApproval(AITool tool, ToolRegistryEntry entry, ToolMaterializationOptions options)
+    internal static AITool WrapForApproval(AITool tool, ToolRegistryEntry entry, ToolMaterializationOptions options, ILogger logger = null)
     {
         ArgumentNullException.ThrowIfNull(tool);
         ArgumentNullException.ThrowIfNull(entry);
         options ??= ToolMaterializationOptions.Default;
 
-        // The profile was set to run its tools without asking, so the tool is offered as it is.
         if (!entry.RequiresApproval ||
-            options.RunWithoutApproval ||
             tool is ApprovalRequiredAIFunction ||
-            tool is ApprovalUnavailableAIFunction)
+            tool is ApprovalUnavailableAIFunction ||
+            tool is AutoApprovedAIFunction)
         {
             return tool;
         }
@@ -217,6 +212,13 @@ public sealed class DefaultToolMaterializer : IToolMaterializer
         if (tool is not AIFunction function)
         {
             return null;
+        }
+
+        // The approval policy lets the tool run without asking: its kind requires the approval, not its own
+        // registration. The call is audited when it runs.
+        if (options.ApprovalPolicy?.RunsWithoutAsking(entry) == true)
+        {
+            return new AutoApprovedAIFunction(function, entry.Kind, logger ?? NullLogger.Instance);
         }
 
         if (options.SupportsToolApproval)

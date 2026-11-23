@@ -2,6 +2,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using CrestApps.Core.AI.Completions;
 using CrestApps.Core.AI.Models;
+using CrestApps.Core.AI.Tooling;
 using CrestApps.Core.Templates.Services;
 
 namespace CrestApps.Core.AI.Handlers;
@@ -80,16 +81,10 @@ internal sealed class AIProfileCompletionContextBuilderHandler : IAICompletionCo
             context.Context.AgentNames = agentInvocationMetadata.Names;
         }
 
-        // Each profile's own setting: an agent called by this profile builds its own context from the agent's
-        // profile, so the choice of the calling profile never carries over to it, nor the other way around.
-        if (profile.TryGet<ToolApprovalMetadata>(out var toolApprovalMetadata) && toolApprovalMetadata.RunWithoutAsking)
-        {
-            context.Context.AdditionalProperties[AICompletionContextKeys.RunToolsWithoutApproval] = true;
-        }
-        else
-        {
-            context.Context.AdditionalProperties.Remove(AICompletionContextKeys.RunToolsWithoutApproval);
-        }
+        // The profile's own approval policy, or none, so a policy left on the context never carries over. An agent's
+        // run gets the stricter of the agent's policy and its caller's, in AgentProxyTool.
+        profile.TryGetSettings<AIToolApprovalSettings>(out var toolApprovalSettings);
+        context.Context.SetToolApprovalPolicy(ToolApprovalPolicy.FromSettings(toolApprovalSettings));
     }
 
     /// <summary>

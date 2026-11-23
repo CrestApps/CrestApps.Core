@@ -194,6 +194,10 @@ internal sealed class AgentProxyTool : AIFunction
         var orchestratorResolver = services.GetRequiredService<IOrchestratorResolver>();
         var invocationContext = AIInvocationScope.Current;
         var callerDeploymentName = invocationContext.CompletionContext?.ChatDeploymentName;
+
+        // The approval policy of the request that calls the agent. None when there is no calling profile, such as an
+        // MCP client that calls the agent directly.
+        var callerApprovalPolicy = invocationContext.CompletionContext?.GetToolApprovalPolicy();
         var approvals = AgentToolApprovals.Get(invocationContext);
 
         // The agent can ask only when its caller can show the request to a person and can come back to this very
@@ -239,6 +243,12 @@ internal sealed class AgentProxyTool : AIFunction
                         ctx.CompletionContext.AgentNames = [];
                         InheritDeployment(ctx.CompletionContext, callerDeploymentName);
                         AgentToolApprovals.ConfigureAgentContext(ctx.CompletionContext, canAsk);
+
+                        // The stricter policy wins: a call inside the agent runs without asking only when both the
+                        // agent's profile and the caller allow it, so one shared agent cannot take approvals away
+                        // from every profile that uses it. The agent's own policy was set while the context was built.
+                        ctx.CompletionContext.SetToolApprovalPolicy(
+                            ToolApprovalPolicy.ForAgent(callerApprovalPolicy, ctx.CompletionContext.GetToolApprovalPolicy()));
                     }
                 },
                 cancellationToken);

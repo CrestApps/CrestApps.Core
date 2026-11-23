@@ -78,6 +78,9 @@ internal sealed class ProfileToolRegistryProvider : IToolRegistryProvider
                 ? ToolRegistryEntrySource.System
                 : ToolRegistryEntrySource.Local,
             RequiresApproval = definition.RequiresApproval,
+
+            // An explicit .RequireApproval() is the tool author's floor: no approval policy lowers it.
+            ApprovalFloor = definition.RequiresApprovalExplicit == true ? ToolApprovalMode.EveryCall : null,
             Kind = definition.Kind,
             CreateAsync = (sp) => ValueTask.FromResult(sp.GetKeyedService<AITool>(toolName)),
         };

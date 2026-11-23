@@ -92,8 +92,8 @@ public sealed class FunctionInvocationAICompletionServiceHandler : IAICompletion
                 SupportsToolApproval = context.CompletionContext.AdditionalProperties.TryGetValue(AICompletionContextKeys.ToolApprovalSupported, out var approvalValue) &&
                     approvalValue is true,
 
-                // Unless the profile was set to run its tools without asking.
-                RunWithoutApproval = context.CompletionContext.RunsToolsWithoutApproval(),
+                // Unless the request's approval policy lets the tool run without asking; each such call is audited.
+                ApprovalPolicy = context.CompletionContext.GetToolApprovalPolicy(),
             },
             cancellationToken);
 
