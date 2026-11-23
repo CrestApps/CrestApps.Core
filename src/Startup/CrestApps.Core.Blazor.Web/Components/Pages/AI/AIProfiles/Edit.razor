@@ -762,7 +762,7 @@ else if (_model != null)
                                 <option value="False">Ask for approval (recommended)</option>
                                 <option value="True">Allow all tools without asking</option>
                             </InputSelect>
-                            <div class="form-text">Ask for approval shows Allow and Deny before a tool that sends, changes or deletes something runs. Allow all skips that, except for tools that always ask. An agent's tools skip it only when the agent and the profile calling it both allow all.</div>
+                            <div class="form-text">Ask for approval shows Allow and Deny before a tool runs. Allow all skips that, except for tools that always ask. An agent's tools skip it only when the agent and the profile calling it both allow all.</div>
                         </div>
                         @if (_model.AvailableTools.Count == 0)
                         {
