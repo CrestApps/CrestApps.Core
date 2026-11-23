@@ -1,3 +1,4 @@
+using CrestApps.Core.AI.Completions;
 using CrestApps.Core.AI.Handlers;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.Templates.Services;
@@ -75,5 +76,42 @@ public sealed class AIProfileCompletionContextBuilderHandlerTests
         Assert.False(completionContext.UseCaching);
         Assert.Equal(["property-tool"], completionContext.ToolNames);
         Assert.Equal(["property-agent"], completionContext.AgentNames);
+    }
+
+    [Fact]
+    public async Task BuildingAsync_ProfileSetToRunToolsWithoutAsking_TellsTheToolPipeline()
+    {
+        var handler = new AIProfileCompletionContextBuilderHandler(Mock.Of<ITemplateService>());
+        var profile = new AIProfile();
+
+        profile.Put(new ToolApprovalMetadata { RunWithoutAsking = true });
+
+        var completionContext = new AICompletionContext();
+
+        await handler.BuildingAsync(new AICompletionContextBuildingContext(profile, completionContext));
+
+        Assert.True(completionContext.RunsToolsWithoutApproval());
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(null)]
+    public async Task BuildingAsync_ProfileThatAsks_NeverKeepsTheChoiceOfAnotherProfile(bool? runWithoutAsking)
+    {
+        var handler = new AIProfileCompletionContextBuilderHandler(Mock.Of<ITemplateService>());
+        var profile = new AIProfile();
+
+        if (runWithoutAsking.HasValue)
+        {
+            profile.Put(new ToolApprovalMetadata { RunWithoutAsking = runWithoutAsking.Value });
+        }
+
+        // A context that already says to run without asking, as if the choice of the calling profile had reached it.
+        var completionContext = new AICompletionContext();
+        completionContext.AdditionalProperties[AICompletionContextKeys.RunToolsWithoutApproval] = true;
+
+        await handler.BuildingAsync(new AICompletionContextBuildingContext(profile, completionContext));
+
+        Assert.False(completionContext.RunsToolsWithoutApproval());
     }
 }

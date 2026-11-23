@@ -526,7 +526,11 @@ public sealed class DefaultRealtimeOrchestrator : IRealtimeOrchestrator
             entries = scoped;
         }
 
-        var result = await _toolMaterializer.MaterializeAsync(entries, ToolMaterializationOptions.Default, cancellationToken);
+        // A voice session cannot ask for an approval, so a tool that requires one does not run, unless the profile was
+        // set to run its tools without asking.
+        var options = context.CompletionContext.RunsToolsWithoutApproval() ? new ToolMaterializationOptions { RunWithoutApproval = true } : ToolMaterializationOptions.Default;
+
+        var result = await _toolMaterializer.MaterializeAsync(entries, options, cancellationToken);
 
         return result.Tools;
     }

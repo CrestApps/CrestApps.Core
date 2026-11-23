@@ -32,6 +32,7 @@
 			aguiResultLabel: "Result",
 			aguiApprovalPrompt: "Allow this action?",
 			aguiAgentApprovalPrompt: "Allow {0} to do this?",
+			aguiAgentLabel: "by {0}",
 			aguiAllowLabel: "Allow",
 			aguiDenyLabel: "Deny",
 			aguiAllowedLabel: "Allowed",
@@ -354,8 +355,24 @@
 				status: normalizeToolCallStatus(call.status),
 				interruptId: call.interruptId || call.approvalRequestId || null,
 				agentName: call.agentName || "",
-				agentDisplayText: call.agentDisplayText || ""
+				agentDisplayText: call.agentDisplayText || "",
+				agentCallId: call.agentCallId || ""
 			}));
+		}
+		function humanizeName(name) {
+			const words = String(name || "").replace(/[_.-]+/g, " ").replace(/([a-z0-9])([A-Z])/g, "$1 $2").replace(/([A-Z]+)([A-Z][a-z])/g, "$1 $2").trim().split(/\s+/).filter(Boolean).map((word, index) => index > 0 && /^[A-Z][a-z]/.test(word) ? word.toLowerCase() : word);
+			if (!words.length) return "";
+			return words[0].charAt(0).toUpperCase() + words[0].slice(1) + (words.length > 1 ? " " + words.slice(1).join(" ") : "");
+		}
+		function formatToolFields(text) {
+			const parsed = parseToolArguments(text);
+			if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) return null;
+			const rows = Object.keys(parsed).map((key) => {
+				const value = parsed[key];
+				const shown = value !== null && typeof value === "object" ? JSON.stringify(value) : String(value ?? "");
+				return "<tr><th scope=\"row\">" + escapeHtmlText(humanizeName(key)) + "</th><td>" + escapeHtmlText(shown.length > 2e3 ? shown.slice(0, 2e3) + "…" : shown) + "</td></tr>";
+			});
+			return rows.length ? "<table class=\"ai-chat-agui-tool-fields\"><tbody>" + rows.join("") + "</tbody></table>" : null;
 		}
 		function parseToolArguments(text) {
 			if (!text) return null;
@@ -367,10 +384,7 @@
 		}
 		function describeToolCall(call) {
 			let label = Object.assign({}, aguiDefaultToolLabels, defaultConfig.aguiToolLabels || {})[call.name];
-			if (!label) {
-				label = String(call.name || "tool").replace(/[_.-]+/g, " ");
-				label = label.charAt(0).toUpperCase() + label.slice(1);
-			}
+			if (!label) label = humanizeName(call.name || "tool");
 			const args = parseToolArguments(call.arguments);
 			if (args && call.name === "page_set_form_field" && args.field) label += ": " + args.field;
 			else if (args && call.name === "page_navigate" && args.url) label += ": " + args.url;
@@ -386,7 +400,9 @@
 			const toolCalls = Array.isArray(message.toolCalls) ? message.toolCalls : [];
 			const parts = [];
 			if (message.reasoning) parts.push("<details class=\"ai-chat-agui-reasoning\"><summary>" + escapeHtmlText(defaultConfig.aguiThinkingLabel) + "</summary><div class=\"ai-chat-agui-reasoning-text\">" + escapeHtmlText(message.reasoning) + "</div></details>");
+			const agentCallIds = new Set(toolCalls.filter((call) => call.agentCallId).map((call) => call.agentCallId));
 			for (const call of toolCalls) {
+				if (agentCallIds.has(call.id)) continue;
 				const status = call.status || "requested";
 				let icon = "fa-solid fa-circle-notch fa-spin";
 				let state = defaultConfig.aguiRunningLabel;
@@ -401,13 +417,16 @@
 					state = defaultConfig.aguiWaitingLabel;
 				}
 				let details = "";
-				if (call.arguments && call.arguments !== "{}") details += "<div class=\"ai-chat-agui-tool-section\"><div class=\"ai-chat-agui-tool-section-label\">" + escapeHtmlText(defaultConfig.aguiInputLabel) + "</div><pre>" + escapeHtmlText(formatToolText(call.arguments, 2e3)) + "</pre></div>";
+				if (call.arguments && call.arguments !== "{}") {
+					const fields = formatToolFields(call.arguments);
+					details += fields ? "<div class=\"ai-chat-agui-tool-section\">" + fields + "</div>" : "<div class=\"ai-chat-agui-tool-section\"><div class=\"ai-chat-agui-tool-section-label\">" + escapeHtmlText(defaultConfig.aguiInputLabel) + "</div><pre>" + escapeHtmlText(formatToolText(call.arguments, 2e3)) + "</pre></div>";
+				}
 				if (call.result) details += "<div class=\"ai-chat-agui-tool-section\"><div class=\"ai-chat-agui-tool-section-label\">" + escapeHtmlText(defaultConfig.aguiResultLabel) + "</div><pre>" + escapeHtmlText(formatToolText(call.result, 2e3)) + "</pre></div>";
-				const summary = "<i class=\"" + icon + "\" aria-hidden=\"true\"></i> <span class=\"ai-chat-agui-tool-name\">" + escapeHtmlText(describeToolCall(call)) + "</span>" + (state ? " <span class=\"ai-chat-agui-tool-state\">" + escapeHtmlText(state) + "</span>" : "");
+				const agentLabel = call.agentName ? call.agentDisplayText || describeToolCall({ name: call.agentName }) : "";
+				const summary = "<i class=\"" + icon + "\" aria-hidden=\"true\"></i> <span class=\"ai-chat-agui-tool-name\">" + escapeHtmlText(describeToolCall(call)) + "</span>" + (agentLabel ? " <span class=\"ai-chat-agui-tool-agent\">" + escapeHtmlText(String(defaultConfig.aguiAgentLabel).replace("{0}", () => agentLabel)) + "</span>" : "") + (state ? " <span class=\"ai-chat-agui-tool-state\">" + escapeHtmlText(state) + "</span>" : "");
 				let html = "<div class=\"ai-chat-agui-tool ai-chat-agui-tool-" + escapeHtmlText(status) + "\" data-agui-tool-call=\"" + escapeHtmlText(call.id) + "\">";
-				html += details ? "<details><summary>" + summary + "</summary>" + details + "</details>" : "<div class=\"ai-chat-agui-tool-summary\">" + summary + "</div>";
+				html += details ? "<details" + (status === "awaitingApproval" ? " open" : "") + "><summary>" + summary + "</summary>" + details + "</details>" : "<div class=\"ai-chat-agui-tool-summary\">" + summary + "</div>";
 				if (status === "awaitingApproval" && call.interruptId) {
-					const agentLabel = call.agentDisplayText || describeToolCall({ name: call.agentName });
 					const approvalPrompt = call.agentName ? String(defaultConfig.aguiAgentApprovalPrompt).replace("{0}", () => agentLabel) : defaultConfig.aguiApprovalPrompt;
 					html += "<div class=\"ai-chat-agui-approval\"><span>" + escapeHtmlText(approvalPrompt) + "</span><button type=\"button\" class=\"btn btn-sm btn-primary\" data-agui-interrupt=\"" + escapeHtmlText(call.interruptId) + "\" data-agui-approved=\"true\">" + escapeHtmlText(defaultConfig.aguiAllowLabel) + "</button><button type=\"button\" class=\"btn btn-sm btn-outline-secondary\" data-agui-interrupt=\"" + escapeHtmlText(call.interruptId) + "\" data-agui-approved=\"false\">" + escapeHtmlText(defaultConfig.aguiDenyLabel) + "</button></div>";
 				}
@@ -1768,6 +1787,7 @@
 												const agentCall = run.toolCalls[metadata.agentToolCallId];
 												call.agentName = metadata.agentName;
 												call.agentDisplayText = metadata.agentDisplayText || "";
+												call.agentCallId = metadata.agentToolCallId || "";
 												if (agentCall) agentCall.status = "awaitingApproval";
 											}
 										}

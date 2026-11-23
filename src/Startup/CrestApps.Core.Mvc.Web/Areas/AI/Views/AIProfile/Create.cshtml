@@ -1,4 +1,4 @@
-﻿@using CrestApps.Core.AI.Documents.Models
+@using CrestApps.Core.AI.Documents.Models
 @using CrestApps.Core.Mvc.Web.Areas.AI.ViewModels
 @using CrestApps.Core.AI.Models
 @using CrestApps.Core.Mvc.Web.Services
@@ -627,6 +627,14 @@
 
                     <!-- AI Tools Section -->
                     <h6 class="mb-2 mt-4 border-bottom pb-2"><i class="fa-solid fa-screwdriver-wrench"></i> AI Tools</h6>
+                    <div class="mb-3">
+                        <label asp-for="RunToolsWithoutAsking" class="form-label">Tool approval</label>
+                        <select asp-for="RunToolsWithoutAsking" class="form-select">
+                            <option value="False">Ask for approval (recommended)</option>
+                            <option value="True">Allow all tools without asking</option>
+                        </select>
+                        <div class="form-text">Applies only to the tools selected on this tab. Ask for approval shows Allow and Deny before a tool runs.</div>
+                    </div>
                     @if (Model.AvailableTools.Count == 0)
                     {
                         <div class="alert alert-info mb-0">

@@ -79,6 +79,45 @@
     margin: 0 0.5rem 0.375rem;
 }
 
+.ai-chat-agui-tool-agent {
+    margin-inline-start: 0.25rem;
+    color: var(--bs-secondary-color, #6c757d);
+}
+
+.ai-chat-agui-tool-fields {
+    width: 100%;
+    margin: 0;
+    border-collapse: collapse;
+    font-size: 0.875rem;
+    background: var(--bs-body-bg, #fff);
+    border-radius: 0.25rem;
+}
+
+.ai-chat-agui-tool-fields th,
+.ai-chat-agui-tool-fields td {
+    padding: 0.375rem 0.5rem;
+    vertical-align: top;
+    border-top: 1px solid var(--bs-border-color, #dee2e6);
+}
+
+.ai-chat-agui-tool-fields tr:first-child th,
+.ai-chat-agui-tool-fields tr:first-child td {
+    border-top: 0;
+}
+
+.ai-chat-agui-tool-fields th {
+    width: 8rem;
+    font-weight: 400;
+    color: var(--bs-secondary-color, #6c757d);
+    white-space: nowrap;
+}
+
+.ai-chat-agui-tool-fields td {
+    color: var(--bs-body-color, #212529);
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
 .ai-chat-agui-approval {
     display: flex;
     flex-wrap: wrap;

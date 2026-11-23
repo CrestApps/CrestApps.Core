@@ -123,6 +123,8 @@ agent.Put(new AgentMetadata
 });
 ```
 
+The MVC and Blazor sample hosts set it from the agent profile editor's Capabilities tab: an agent saved with at least one tool, tool instance, MCP connection or A2A connection picked gets `AllowToolInvocation = true`, and one saved with none gets `false`.
+
 When a tool-capable agent is invoked, `AgentProxyTool` runs it through the orchestrator so its configured tools are available. A recursion-depth guard (`AIInvocationContext.AgentInvocationDepth`) suppresses nested agents, so an agent can never invoke another agent — bounding recursion to a single level. This is how the system [Tabular Data Agent](./ai-documents.md#tabular-files) runs its SQL tools, and the system [Presentation Agent](./ai-documents.md#presentations-and-the-presentation-agent) its PowerPoint tools.
 
 ### Tools of an agent that require an approval
@@ -133,6 +135,8 @@ A tool registered with `.RequireApproval()`, or as a destructive, external or se
 |------|------|
 | Can ask a person (an AG-UI chat run on the default orchestrator) | The agent pauses, and the assistant's run ends with an approval request that names the agent, the tool and its arguments. **Allow** continues the agent where it stopped, and the tool runs. **Deny** continues the agent with a refusal it can report. Nothing the agent did before the pause is done again. |
 | Cannot ask (the text-only chat stream, a chat interaction, a realtime conversation, an MCP client that calls the agent, a background task) | The tool does not run. The agent's model gets a result that says the tool needs an approval this conversation cannot ask for, and the agent reports that. |
+
+An agent profile set to run its tools without asking (`ToolApprovalMetadata.RunWithoutAsking`, see [Running a Profile's Tools Without Asking](./tools.md#running-a-profiles-tools-without-asking)) runs such a tool at once, in both cases. The setting of the profile that calls the agent does not carry over to the agent, in either direction.
 
 This is the same rule as for a tool on the assistant's own profile: where nobody can be asked, a tool that requires an approval does not run. See [Tools inside an agent](./ag-ui.md#tools-inside-an-agent) for the events, the stored state and the limits. Give an agent a tool that requires an approval only when the assistants that use the agent run in a chat that can ask; in other chats the agent can do everything except that tool.
 

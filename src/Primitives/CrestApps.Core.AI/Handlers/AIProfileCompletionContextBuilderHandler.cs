@@ -79,6 +79,17 @@ internal sealed class AIProfileCompletionContextBuilderHandler : IAICompletionCo
         {
             context.Context.AgentNames = agentInvocationMetadata.Names;
         }
+
+        // Each profile's own setting: an agent called by this profile builds its own context from the agent's
+        // profile, so the choice of the calling profile never carries over to it, nor the other way around.
+        if (profile.TryGet<ToolApprovalMetadata>(out var toolApprovalMetadata) && toolApprovalMetadata.RunWithoutAsking)
+        {
+            context.Context.AdditionalProperties[AICompletionContextKeys.RunToolsWithoutApproval] = true;
+        }
+        else
+        {
+            context.Context.AdditionalProperties.Remove(AICompletionContextKeys.RunToolsWithoutApproval);
+        }
     }
 
     /// <summary>

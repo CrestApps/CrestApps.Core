@@ -112,6 +112,61 @@ public sealed class ToolApprovalWithoutAskingTests
         Assert.Same(tool, DefaultToolMaterializer.WrapForApproval(tool, new ToolRegistryEntry { Name = tool.Name }, new ToolMaterializationOptions { SupportsToolApproval = true }));
     }
 
+    [Fact]
+    public async Task AProfileSetToRunWithoutAsking_RunsAToolThatRequiresApproval_WhereNobodyCanBeAsked()
+    {
+        using var host = new ToolHost { RunToolsWithoutAsking = true };
+
+        var tools = await host.ConfigureAsync(supportsApproval: false, isChatInteraction: false, AskingTool.TheName, DeleteTool.TheName);
+
+        // Offered as they are: neither replaced nor wrapped.
+        Assert.Equal(2, tools.Count);
+        Assert.Same(host.Get<AskingTool>(), tools[0]);
+        Assert.Same(host.Get<DeleteTool>(), tools[1]);
+
+        await ((AIFunction)tools[1]).InvokeAsync(new AIFunctionArguments(), TestContext.Current.CancellationToken);
+
+        Assert.Equal(1, host.Get<DeleteTool>().CallCount);
+    }
+
+    [Fact]
+    public async Task AProfileSetToRunWithoutAsking_DoesNotPause_WhereAPersonCanBeAsked()
+    {
+        using var host = new ToolHost { RunToolsWithoutAsking = true };
+
+        var tools = await host.ConfigureAsync(supportsApproval: true, isChatInteraction: false, DeleteTool.TheName);
+
+        Assert.Same(host.Get<DeleteTool>(), Assert.Single(tools));
+    }
+
+    [Fact]
+    public async Task AProfileSetToRunWithoutAsking_StillOffersOnlyTheToolsTheCallerMayUse()
+    {
+        using var host = new ToolHost
+        {
+            RunToolsWithoutAsking = true,
+            AccessEvaluator = new DenyAllToolAccessEvaluator(),
+        };
+
+        // Only the approval is skipped: a caller that may not use the tool still does not get it.
+        var tools = await host.ConfigureAsync(supportsApproval: false, isChatInteraction: true, DeleteTool.TheName);
+
+        Assert.Empty(tools);
+        Assert.Equal(0, host.Get<DeleteTool>().CallCount);
+    }
+
+    [Fact]
+    public void WrapForApproval_RunWithoutApproval_OffersTheToolAsItIs()
+    {
+        var function = new ListTool();
+        var hosted = new HostedTool();
+        var options = new ToolMaterializationOptions { RunWithoutApproval = true };
+
+        Assert.Same(function, DefaultToolMaterializer.WrapForApproval(function, new ToolRegistryEntry { Name = function.Name, RequiresApproval = true }, options));
+        Assert.Same(hosted, DefaultToolMaterializer.WrapForApproval(hosted, new ToolRegistryEntry { Name = hosted.Name, RequiresApproval = true }, options));
+        Assert.Same(function, DefaultToolMaterializer.WrapForApproval(function, new ToolRegistryEntry { Name = function.Name, RequiresApproval = true }, new ToolMaterializationOptions { RunWithoutApproval = true, SupportsToolApproval = true }));
+    }
+
     /// <summary>
     /// A host with registered tools, the profile tool registry, the tool materializer and the function invocation
     /// handler, as the default orchestrator wires them for one request.
@@ -132,6 +187,16 @@ public sealed class ToolApprovalWithoutAskingTests
 
             _services = services.BuildServiceProvider();
         }
+
+        /// <summary>
+        /// Gets or sets a value indicating whether the profile was set to run its tools without asking.
+        /// </summary>
+        public bool RunToolsWithoutAsking { get; set; }
+
+        /// <summary>
+        /// Gets or sets the evaluator that says which tools the caller of a Chat Interaction may use.
+        /// </summary>
+        public IAIToolAccessEvaluator AccessEvaluator { get; set; } = new AllowAllToolAccessEvaluator();
 
         public T Get<T>()
         {
@@ -157,8 +222,13 @@ public sealed class ToolApprovalWithoutAskingTests
                 completionContext.AdditionalProperties[AICompletionContextKeys.Interaction] = new object();
             }
 
+            if (RunToolsWithoutAsking)
+            {
+                completionContext.AdditionalProperties[AICompletionContextKeys.RunToolsWithoutApproval] = true;
+            }
+
             var materializer = new DefaultToolMaterializer(
-                new AllowAllToolAccessEvaluator(),
+                AccessEvaluator,
                 toolDefinitions,
                 _services,
                 NullLogger<DefaultToolMaterializer>.Instance);
@@ -184,6 +254,14 @@ public sealed class ToolApprovalWithoutAskingTests
         public Task<bool> IsAuthorizedAsync(ClaimsPrincipal user, string toolName)
         {
             return Task.FromResult(true);
+        }
+    }
+
+    private sealed class DenyAllToolAccessEvaluator : IAIToolAccessEvaluator
+    {
+        public Task<bool> IsAuthorizedAsync(ClaimsPrincipal user, string toolName)
+        {
+            return Task.FromResult(false);
         }
     }
 

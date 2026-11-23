@@ -95,6 +95,7 @@ public sealed class CopilotOrchestrator : IOrchestrator
         // Build AIFunction instances from non-MCP registry entries only.
         // MCP tools are excluded because Copilot manages MCP connections natively.
         var tools = new List<AIFunction>();
+        var runWithoutApproval = context.CompletionContext.RunsToolsWithoutApproval();
 
         foreach (var entry in allTools)
         {
@@ -108,8 +109,9 @@ public sealed class CopilotOrchestrator : IOrchestrator
                 var aiTool = context.ServiceProvider is not null ? await entry.CreateAsync(context.ServiceProvider) : null;
 
                 // This orchestrator cannot pause for an approval. A tool that requires one is replaced with a tool
-                // that does not run it and tells the model why, so it never runs unasked.
-                if (aiTool is not null && entry.RequiresApproval)
+                // that does not run it and tells the model why, so it never runs unasked, unless the profile was set
+                // to run its tools without asking.
+                if (aiTool is not null && entry.RequiresApproval && !runWithoutApproval)
                 {
                     if (_logger.IsEnabled(LogLevel.Debug))
                     {

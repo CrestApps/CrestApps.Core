@@ -41,6 +41,40 @@ public sealed class AgentToolApprovalTests
     }
 
     [Fact]
+    public async Task AnAgentSetToRunWithoutAsking_RunsItsToolWithoutAnApproval_EvenWhenThePersonCouldBeAsked()
+    {
+        using var harness = new AgentApprovalTestHarness();
+        using var scope = AIInvocationScope.Begin();
+
+        harness.AgentContexts.RunsToolsWithoutAsking = true;
+
+        var updates = await harness.RunAssistantAsync(
+            scope.Context,
+            [new ChatMessage(ChatRole.User, AgentApprovalTestHarness.Prompt)],
+            supportsApproval: true);
+
+        Assert.Equal(1, harness.DeleteTool.CallCount);
+        Assert.DoesNotContain(updates.SelectMany(update => update.Contents), content => content is ToolApprovalRequestContent);
+    }
+
+    [Fact]
+    public async Task AnAssistantSetToRunWithoutAsking_DoesNotPassItsChoiceToTheAgent()
+    {
+        using var harness = new AgentApprovalTestHarness { AssistantRunsToolsWithoutAsking = true };
+        using var scope = AIInvocationScope.Begin();
+
+        var updates = await harness.RunAssistantAsync(
+            scope.Context,
+            [new ChatMessage(ChatRole.User, AgentApprovalTestHarness.Prompt)],
+            supportsApproval: true);
+
+        // The agent asks, as its own profile says: the assistant's choice is for the assistant's own tools.
+        Assert.False(Assert.Single(harness.AgentContexts.Built).CompletionContext.RunsToolsWithoutApproval());
+        Assert.Equal(0, harness.DeleteTool.CallCount);
+        Assert.Contains(updates.SelectMany(update => update.Contents), content => content is ToolApprovalRequestContent);
+    }
+
+    [Fact]
     public async Task TheAssistantsRunPauses_WithARequestThatNamesTheAgentTheToolAndItsArguments()
     {
         using var harness = new AgentApprovalTestHarness();

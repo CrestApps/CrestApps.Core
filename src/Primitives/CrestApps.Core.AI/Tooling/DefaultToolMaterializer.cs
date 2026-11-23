@@ -155,6 +155,13 @@ public sealed class DefaultToolMaterializer : IToolMaterializer
                     }
                 }
 
+                else if (entry.RequiresApproval && options.RunWithoutApproval && _logger.IsEnabled(LogLevel.Debug))
+                {
+                    _logger.LogDebug(
+                        "Tool '{ToolName}' from {Source} ({Id}) requires approval and runs without asking, because the profile was set to run its tools without asking.",
+                        entry.Name, entry.Source, entry.Id);
+                }
+
                 if (offered is not null)
                 {
                     tools.Add(offered);
@@ -178,13 +185,14 @@ public sealed class DefaultToolMaterializer : IToolMaterializer
     /// wrapped in <see cref="ApprovalRequiredAIFunction"/>, so the function invocation pauses for the approval instead
     /// of running it. When the caller cannot ask, the tool never runs: it is replaced with a function of the same
     /// name and schema that does not run it and tells the model why, so the model can tell the user. A tool that does
-    /// not require an approval is returned as it is.
+    /// not require an approval, or that runs without asking because <see cref="ToolMaterializationOptions.RunWithoutApproval"/>
+    /// is set, is returned as it is.
     /// </summary>
     /// <param name="tool">The materialized tool.</param>
     /// <param name="entry">The registry entry the tool came from.</param>
     /// <param name="options">The materialization options.</param>
     /// <returns>
-    /// The tool to offer, or <see langword="null"/> when the tool requires an approval and is not an
+    /// The tool to offer, or <see langword="null"/> when the tool must be approved and is not an
     /// <see cref="AIFunction"/>: such a tool can be neither wrapped for an approval nor replaced, so it is left out,
     /// whether the caller can ask or not.
     /// </returns>
@@ -195,7 +203,9 @@ public sealed class DefaultToolMaterializer : IToolMaterializer
         ArgumentNullException.ThrowIfNull(entry);
         options ??= ToolMaterializationOptions.Default;
 
+        // The profile was set to run its tools without asking, so the tool is offered as it is.
         if (!entry.RequiresApproval ||
+            options.RunWithoutApproval ||
             tool is ApprovalRequiredAIFunction ||
             tool is ApprovalUnavailableAIFunction)
         {

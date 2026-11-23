@@ -91,6 +91,9 @@ public sealed class FunctionInvocationAICompletionServiceHandler : IAICompletion
                 // the tool is replaced with one that tells the model why it was not run.
                 SupportsToolApproval = context.CompletionContext.AdditionalProperties.TryGetValue(AICompletionContextKeys.ToolApprovalSupported, out var approvalValue) &&
                     approvalValue is true,
+
+                // Unless the profile was set to run its tools without asking.
+                RunWithoutApproval = context.CompletionContext.RunsToolsWithoutApproval(),
             },
             cancellationToken);
 

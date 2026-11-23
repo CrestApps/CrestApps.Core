@@ -95,6 +95,45 @@ The kind does these things:
 
 A tool registered without a kind has `AIToolKind.Unspecified` and behaves as before: it asks for an approval only when its registration calls `.RequireApproval()`, and `ExposeAllTools` includes it unless it does. An approval is a confirmation for the person in the chat, not an access check. Callers that cannot ask for an approval are described in [AG-UI tool approvals](./ag-ui.md#tool-approvals).
 
+### Running a Profile's Tools Without Asking
+
+A profile can be set to run its tools without asking, with `ToolApprovalMetadata`:
+
+```csharp
+profile.Put(new ToolApprovalMetadata { RunWithoutAsking = true });
+```
+
+The MVC and Blazor sample hosts show it in the **AI Tools** section of the profile editor's **Capabilities** tab, as **Tool approval**: **Ask for approval (recommended)**, the default, or **Allow all tools without asking**.
+
+| Setting | A tool that requires an approval, where a person can be asked (an AG-UI chat run) | Where nobody can be asked (see [Callers that cannot be asked](#callers-that-cannot-be-asked)) |
+|---|---|---|
+| Ask for approval (default) | Asks first: **Allow** or **Deny** | Does not run, and the model is told why |
+| Allow all tools without asking | Runs at once | Runs at once |
+
+- The setting belongs to one profile. An agent the profile calls uses the agent's own setting, whichever the calling profile has: `AIProfileCompletionContextBuilderHandler` sets `AICompletionContextKeys.RunToolsWithoutApproval` from each profile's own metadata, and removes it when the profile asks.
+- Only the approval is skipped. The profile still has only the tools picked for it, and a Chat Interaction still checks each listable tool with `IAIToolAccessEvaluator`.
+- The tool pipeline reads it with `AICompletionContext.RunsToolsWithoutApproval()`, and passes it to the tool materializer as `ToolMaterializationOptions.RunWithoutApproval`.
+- It does not change `ExposeAllTools` of the MCP server or WebMCP, nor the post-session tasks, where a tool that requires an approval never runs.
+- It covers the consequential WebMCP page tools too. With **Allow consequential page tools** off, an AG-UI chat run offers them with an approval; with the profile set to run its tools without asking, they run at once there. Where nobody can be asked, they are still left out unless **Allow consequential page tools** is on.
+
+Turn it on only for a profile whose tools are safe to run unchecked wherever the profile is used: with it, a tool that sends, changes or deletes things also runs for a caller that nobody watches.
+
+#### Callers that cannot be asked
+
+An approval needs a person who can click **Allow** or **Deny**. These callers have none, so where a profile asks, the answer is no: a tool that requires an approval does not run, and the model is told why.
+
+| Caller | What it is | Ask for approval (default) | Allow all tools without asking |
+|---|---|---|---|
+| MCP client calling an agent | Another app, such as VS Code or Claude Desktop, calls one of your agents through the [MCP server](../mcp/server.md) | The agent's tools that require an approval do not run | They run |
+| MCP client calling a tool | The MCP server exposes a tool itself, not through a profile | The profile setting does not apply. `ExposeAllTools` leaves the tool out; a tool named in the `Tools` list runs, because naming it is the host's decision | Same |
+| A2A client | Another AI agent calls one of your agents through the [A2A host](../a2a/host.md) | The sample hosts' A2A host runs the agent with its tools turned off, so no tool runs. A host that turns them on follows this table | Same in the sample hosts: no tool runs |
+| A2A connection | Your profile calls a remote agent, picked on the Capabilities tab | The remote agent runs on its own system, under that system's rules | Same |
+| Voice | A realtime voice conversation | The tool does not run | It runs |
+
+The text-only chat stream, the Claude and Copilot orchestrators, workflows, channels such as SMS and background work cannot ask either, and follow the same rule.
+
+Asking through these callers is not built. MCP elicitation and the A2A `input-required` task state could carry an approval later, and a voice session could ask out loud.
+
 ### Renaming a Tool
 
 Tool names are stored: on AI profiles and templates, on chat interactions, in the `Tools` lists of the MCP server and WebMCP settings, and in whatever a host derives from them (such as a permission for each tool). Give a renamed tool its earlier name as an alias, and the stored names keep working:

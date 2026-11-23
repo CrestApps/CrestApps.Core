@@ -26,6 +26,17 @@ public static class AICompletionContextExtensions
         Copy(metadata.UtilityValues, context.UtilityModelParameters);
     }
 
+    /// <summary>
+    /// Determines whether the profile of the request was set to run its tools without asking, so the tools that
+    /// require an approval run at once (see <see cref="AICompletionContextKeys.RunToolsWithoutApproval"/>).
+    /// </summary>
+    /// <param name="context">The completion context of the request.</param>
+    /// <returns><see langword="true"/> when the tools run without asking; otherwise <see langword="false"/>.</returns>
+    public static bool RunsToolsWithoutApproval(this AICompletionContext context)
+    {
+        return context is not null && context.AdditionalProperties.TryGetValue(AICompletionContextKeys.RunToolsWithoutApproval, out var value) && value is true;
+    }
+
     private static void Copy(Dictionary<string, string> source, Dictionary<string, string> destination)
     {
         if (source is not { Count: > 0 })

@@ -37,4 +37,12 @@ public sealed class ToolMaterializationOptions
     /// the model that this conversation cannot ask a person for the approval, so the model can tell the user.
     /// </summary>
     public bool SupportsToolApproval { get; init; }
+
+    /// <summary>
+    /// Gets a value indicating whether the tools whose entry sets
+    /// <see cref="Models.ToolRegistryEntry.RequiresApproval"/> run without asking anyone, because the profile was set
+    /// to run its tools without asking. They are offered as they are: neither wrapped for an approval nor replaced,
+    /// whether the caller can ask or not. Only the approval is skipped: the access checks still apply.
+    /// </summary>
+    public bool RunWithoutApproval { get; init; }
 }

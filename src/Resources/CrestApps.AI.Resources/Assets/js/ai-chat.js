@@ -66,6 +66,8 @@ window.coreAIChatManager = function () {
         aguiApprovalPrompt: 'Allow this action?',
         // Asked when an agent the assistant delegated to made the call; {0} is the agent's name.
         aguiAgentApprovalPrompt: 'Allow {0} to do this?',
+        // Shown next to a call an agent made; {0} is the agent's title.
+        aguiAgentLabel: 'by {0}',
         aguiAllowLabel: 'Allow',
         aguiDenyLabel: 'Deny',
         aguiAllowedLabel: 'Allowed',
@@ -532,7 +534,52 @@ window.coreAIChatManager = function () {
                 agentName: call.agentName || '',
                 // The agent's title, which the person sees; the name is its id.
                 agentDisplayText: call.agentDisplayText || '',
+                // The assistant's call to that agent, which the call's card stands for.
+                agentCallId: call.agentCallId || '',
             }));
+    }
+
+    // Turns a field name into a label: "subject" -> "Subject", "contentItemId" -> "Content item id".
+    function humanizeName(name) {
+        const words = String(name || '')
+            .replace(/[_.-]+/g, ' ')
+            .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+            .replace(/([A-Z]+)([A-Z][a-z])/g, '$1 $2')
+            .trim()
+            .split(/\s+/)
+            .filter(Boolean)
+            // Words after the first are lower-cased, except acronyms such as "ID" or "PR327".
+            .map((word, index) => index > 0 && /^[A-Z][a-z]/.test(word) ? word.toLowerCase() : word);
+
+        if (!words.length) {
+            return '';
+        }
+
+        return words[0].charAt(0).toUpperCase() + words[0].slice(1) + (words.length > 1 ? ' ' + words.slice(1).join(' ') : '');
+    }
+
+    // Shows a call's input as labeled fields when it is a plain object, so a person reads "To", "Subject" and
+    // "Message" instead of JSON. Anything else (an array, text that is not JSON) keeps the raw view.
+    function formatToolFields(text) {
+        const parsed = parseToolArguments(text);
+
+        if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
+            return null;
+        }
+
+        const rows = Object.keys(parsed).map(key => {
+            const value = parsed[key];
+            const shown = value !== null && typeof value === 'object'
+                ? JSON.stringify(value)
+                : String(value ?? '');
+
+            return '<tr><th scope="row">' + escapeHtmlText(humanizeName(key)) + '</th><td>' +
+                escapeHtmlText(shown.length > 2000 ? shown.slice(0, 2000) + '…' : shown) + '</td></tr>';
+        });
+
+        return rows.length
+            ? '<table class="ai-chat-agui-tool-fields"><tbody>' + rows.join('') + '</tbody></table>'
+            : null;
     }
 
     function parseToolArguments(text) {
@@ -552,8 +599,7 @@ window.coreAIChatManager = function () {
         let label = labels[call.name];
 
         if (!label) {
-            label = String(call.name || 'tool').replace(/[_.-]+/g, ' ');
-            label = label.charAt(0).toUpperCase() + label.slice(1);
+            label = humanizeName(call.name || 'tool');
         }
 
         const args = parseToolArguments(call.arguments);
@@ -587,7 +633,14 @@ window.coreAIChatManager = function () {
                 '</summary><div class="ai-chat-agui-reasoning-text">' + escapeHtmlText(message.reasoning) + '</div></details>');
         }
 
+        // A call an agent made stands for the assistant's call to that agent: one card per tool, which names the agent.
+        const agentCallIds = new Set(toolCalls.filter(call => call.agentCallId).map(call => call.agentCallId));
+
         for (const call of toolCalls) {
+            if (agentCallIds.has(call.id)) {
+                continue;
+            }
+
             const status = call.status || 'requested';
             let icon = 'fa-solid fa-circle-notch fa-spin';
             let state = defaultConfig.aguiRunningLabel;
@@ -606,8 +659,12 @@ window.coreAIChatManager = function () {
             let details = '';
 
             if (call.arguments && call.arguments !== '{}') {
-                details += '<div class="ai-chat-agui-tool-section"><div class="ai-chat-agui-tool-section-label">' + escapeHtmlText(defaultConfig.aguiInputLabel) +
-                    '</div><pre>' + escapeHtmlText(formatToolText(call.arguments, 2000)) + '</pre></div>';
+                const fields = formatToolFields(call.arguments);
+
+                details += fields
+                    ? '<div class="ai-chat-agui-tool-section">' + fields + '</div>'
+                    : '<div class="ai-chat-agui-tool-section"><div class="ai-chat-agui-tool-section-label">' + escapeHtmlText(defaultConfig.aguiInputLabel) +
+                        '</div><pre>' + escapeHtmlText(formatToolText(call.arguments, 2000)) + '</pre></div>';
             }
 
             if (call.result) {
@@ -615,17 +672,20 @@ window.coreAIChatManager = function () {
                     '</div><pre>' + escapeHtmlText(formatToolText(call.result, 2000)) + '</pre></div>';
             }
 
+            // The agent that made the call, by its title.
+            const agentLabel = call.agentName ? (call.agentDisplayText || describeToolCall({ name: call.agentName })) : '';
             const summary = '<i class="' + icon + '" aria-hidden="true"></i> <span class="ai-chat-agui-tool-name">' + escapeHtmlText(describeToolCall(call)) + '</span>' +
+                (agentLabel ? ' <span class="ai-chat-agui-tool-agent">' + escapeHtmlText(String(defaultConfig.aguiAgentLabel).replace('{0}', () => agentLabel)) + '</span>' : '') +
                 (state ? ' <span class="ai-chat-agui-tool-state">' + escapeHtmlText(state) + '</span>' : '');
             let html = '<div class="ai-chat-agui-tool ai-chat-agui-tool-' + escapeHtmlText(status) + '" data-agui-tool-call="' + escapeHtmlText(call.id) + '">';
 
+            // A call that waits for an approval shows what would run, so the person reads it before answering.
             html += details
-                ? '<details><summary>' + summary + '</summary>' + details + '</details>'
+                ? '<details' + (status === 'awaitingApproval' ? ' open' : '') + '><summary>' + summary + '</summary>' + details + '</details>'
                 : '<div class="ai-chat-agui-tool-summary">' + summary + '</div>';
 
             if (status === 'awaitingApproval' && call.interruptId) {
                 // A call an agent made names the agent, so the user knows who asks.
-                const agentLabel = call.agentDisplayText || describeToolCall({ name: call.agentName });
                 const approvalPrompt = call.agentName
                     ? String(defaultConfig.aguiAgentApprovalPrompt).replace('{0}', () => agentLabel)
                     : defaultConfig.aguiApprovalPrompt;
@@ -2689,6 +2749,7 @@ window.coreAIChatManager = function () {
 
                                             call.agentName = metadata.agentName;
                                             call.agentDisplayText = metadata.agentDisplayText || '';
+                                            call.agentCallId = metadata.agentToolCallId || '';
 
                                             if (agentCall) {
                                                 agentCall.status = 'awaitingApproval';

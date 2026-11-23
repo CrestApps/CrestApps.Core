@@ -147,6 +147,11 @@ internal sealed class AgentApprovalTestHarness : IDisposable
     public DeleteItemTool DeleteTool => _services.GetRequiredService<DeleteItemTool>();
 
     /// <summary>
+    /// Gets or sets a value indicating whether the assistant's profile was set to run its tools without asking.
+    /// </summary>
+    public bool AssistantRunsToolsWithoutAsking { get; set; }
+
+    /// <summary>
     /// Creates the orchestration context of the assistant's turn: a profile that has the agent and no tools of
     /// its own.
     /// </summary>
@@ -164,6 +169,11 @@ internal sealed class AgentApprovalTestHarness : IDisposable
         if (supportsApproval)
         {
             completionContext.AdditionalProperties[AICompletionContextKeys.ToolApprovalSupported] = true;
+        }
+
+        if (AssistantRunsToolsWithoutAsking)
+        {
+            completionContext.AdditionalProperties[AICompletionContextKeys.RunToolsWithoutApproval] = true;
         }
 
         return new OrchestrationContext
@@ -346,6 +356,11 @@ internal sealed class AgentApprovalTestHarness : IDisposable
         /// </summary>
         public List<OrchestrationContext> Built { get; } = [];
 
+        /// <summary>
+        /// Gets or sets a value indicating whether the agent's profile was set to run its tools without asking.
+        /// </summary>
+        public bool RunsToolsWithoutAsking { get; set; }
+
         public ValueTask<OrchestrationContext> BuildAsync(object resource, Action<OrchestrationContext> configure = null, CancellationToken cancellationToken = default)
         {
             var context = new OrchestrationContext
@@ -356,6 +371,11 @@ internal sealed class AgentApprovalTestHarness : IDisposable
                     ToolNames = [ListItemsTool.TheName, DeleteItemTool.TheName],
                 },
             };
+
+            if (RunsToolsWithoutAsking)
+            {
+                context.CompletionContext.AdditionalProperties[AICompletionContextKeys.RunToolsWithoutApproval] = true;
+            }
 
             configure?.Invoke(context);
             Built.Add(context);

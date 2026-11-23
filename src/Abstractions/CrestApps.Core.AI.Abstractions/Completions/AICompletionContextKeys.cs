@@ -102,6 +102,13 @@ public static class AICompletionContextKeys
     public const string ToolApprovalSupported = "ToolApprovalSupported";
 
     /// <summary>
+    /// The key whose <see langword="true"/> value tells the tool pipeline that the profile was set to run its tools
+    /// without asking. Tools that require an approval then run at once, even where nobody could be asked. The profile
+    /// sets it for its own requests only: an agent the profile calls uses the agent's own setting.
+    /// </summary>
+    public const string RunToolsWithoutApproval = "RunToolsWithoutApproval";
+
+    /// <summary>
     /// The key of the context the client sent with the message (an <see cref="IReadOnlyList{T}"/> of
     /// <see cref="Models.ChatClientContextEntry"/>), such as the page the user is on. It reaches the model as data,
     /// never as instructions.
