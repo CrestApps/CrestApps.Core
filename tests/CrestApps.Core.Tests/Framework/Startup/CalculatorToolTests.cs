@@ -29,6 +29,38 @@ public sealed class CalculatorToolTests
     }
 
 
+    /// <summary>
+    /// Verifies that both sample calculators write a readable expression: the operation's symbol, not a question
+    /// mark, and no JSON escape such as \u002B for "+".
+    /// </summary>
+    [Theory]
+    [InlineData("add", "6 + 2", 8)]
+    [InlineData("subtract", "6 - 2", 4)]
+    [InlineData("multiply", "6 \u00D7 2", 12)]
+    [InlineData("divide", "6 \u00F7 2", 3)]
+    public async Task CalculatorTools_InvokeAsync_WriteTheOperationSymbol(string operation, string expression, double expected)
+    {
+        foreach (var calculator in new AIFunction[] { new MvcCalculatorTool(), new BlazorCalculatorTool() })
+        {
+            var arguments = new AIFunctionArguments(new Dictionary<string, object>
+            {
+                ["operation"] = operation,
+                ["a"] = 6,
+                ["b"] = 2,
+            });
+
+            var json = Assert.IsType<string>(await calculator.InvokeAsync(arguments, TestContext.Current.CancellationToken));
+
+            Assert.DoesNotContain("\\u", json);
+
+            using var document = JsonDocument.Parse(json);
+
+            Assert.Equal(expression, document.RootElement.GetProperty("expression").GetString());
+            Assert.Equal(expected, document.RootElement.GetProperty("result").GetDouble());
+        }
+    }
+
+
     private static async Task AssertMultipliesJsonElementArgumentsAsync(AIFunction calculator)
     {
         var arguments = new AIFunctionArguments(JsonSerializer.Deserialize<Dictionary<string, object>>("""{"operation":"multiply","a":6,"b":7}"""));
