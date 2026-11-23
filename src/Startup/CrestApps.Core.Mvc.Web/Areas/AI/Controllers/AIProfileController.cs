@@ -58,6 +58,7 @@ public sealed class AIProfileController : Controller
     private readonly GitHubOAuthService _oauthService;
     private readonly AIToolDefinitionOptions _toolOptions;
     private readonly IAIToolAccessEvaluator _toolAccessEvaluator;
+    private readonly IAIAgentAccessEvaluator _agentAccessEvaluator;
     private readonly IAIDataSourceStore _dataSourceStore;
     private readonly AIDeploymentParameterViewService _modelParameterViewService;
     private readonly IAIDeploymentCapabilityService _capabilityService;
@@ -84,6 +85,7 @@ public sealed class AIProfileController : Controller
         GitHubOAuthService oauthService,
         IOptions<AIToolDefinitionOptions> toolOptions,
         IAIToolAccessEvaluator toolAccessEvaluator,
+        IAIAgentAccessEvaluator agentAccessEvaluator,
         IAIDataSourceStore dataSourceStore,
         AIDeploymentParameterViewService modelParameterViewService,
         IAIDeploymentCapabilityService capabilityService,
@@ -109,6 +111,7 @@ public sealed class AIProfileController : Controller
         _oauthService = oauthService;
         _toolOptions = toolOptions.Value;
         _toolAccessEvaluator = toolAccessEvaluator;
+        _agentAccessEvaluator = agentAccessEvaluator;
         _dataSourceStore = dataSourceStore;
         _modelParameterViewService = modelParameterViewService;
         _capabilityService = capabilityService;
@@ -383,9 +386,10 @@ public sealed class AIProfileController : Controller
         var toolInstances = await _toolInstanceCatalog.GetAllAsync();
         var selectedToolInstanceNames = new HashSet<string>(model.SelectedToolInstanceNames ?? [], StringComparer.OrdinalIgnoreCase);
         model.AvailableToolInstances = toolInstances.OrderBy(i => i.Name, StringComparer.OrdinalIgnoreCase).Select(i => new AIToolInstanceSelectionItem { ItemId = i.ItemId, Name = i.Name, Description = i.Description, Source = i.Source, IsSelected = selectedToolInstanceNames.Contains(i.Name), }).ToList();
-        var allAgents = await _profileManager.GetAsync(AIProfileType.Agent) ?? [];
+        // Only list agents the current user may use. The default IAIAgentAccessEvaluator allows every agent.
+        var allAgents = await _agentAccessEvaluator.GetAuthorizedSelectableAgentsAsync(await _profileManager.GetAsync(AIProfileType.Agent), User);
         var selectedAgentNames = new HashSet<string>(model.SelectedAgentNames ?? [], StringComparer.OrdinalIgnoreCase);
-        model.AvailableAgents = allAgents.Where(a => a.IsUserSelectableAgent()).OrderBy(a => a.DisplayText ?? a.Name, StringComparer.OrdinalIgnoreCase).Select(a => new AgentSelectionItem { Name = a.Name, DisplayText = a.DisplayText ?? a.Name, Description = a.Description, IsSelected = selectedAgentNames.Contains(a.Name), }).ToList();
+        model.AvailableAgents = allAgents.OrderBy(a => a.DisplayText ?? a.Name, StringComparer.OrdinalIgnoreCase).Select(a => new AgentSelectionItem { Name = a.Name, DisplayText = a.DisplayText ?? a.Name, Description = a.Description, IsSelected = selectedAgentNames.Contains(a.Name), }).ToList();
         var allDataSources = await _dataSourceStore.GetAllAsync();
         model.DataSources = allDataSources.OrderBy(ds => ds.DisplayText, StringComparer.OrdinalIgnoreCase).Select(ds => new SelectListItem(ds.DisplayText, ds.ItemId)).ToList();
         var documentSettings = _interactionDocumentOptions.CurrentValue;
@@ -418,12 +422,8 @@ public sealed class AIProfileController : Controller
 
     private async Task<string[]> GetValidAgentNamesAsync(IEnumerable<string> selectedNames)
     {
-        var allAgents = await _profileManager.GetAsync(AIProfileType.Agent) ?? [];
-        var validAgentNames = allAgents
-            .Where(agent => agent.IsUserSelectableAgent())
-            .Select(agent => agent.Name)
-            .Where(name => !string.IsNullOrWhiteSpace(name))
-            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        // Reject any agent name the current user may not use, so a tampered form post cannot save it.
+        var validAgentNames = await _agentAccessEvaluator.GetAuthorizedSelectableAgentNamesAsync(await _profileManager.GetAsync(AIProfileType.Agent), User);
 
         return (selectedNames ?? [])
             .Where(name => !string.IsNullOrWhiteSpace(name) && validAgentNames.Contains(name))

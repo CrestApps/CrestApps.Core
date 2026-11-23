@@ -235,6 +235,35 @@ The `Names` array maps to agent profile names. At orchestration time, the `Agent
 
 `AlwaysAvailable` agents do **not** need to be listed here — they are included automatically regardless of `AgentInvocationMetadata`.
 
+## Controlling Who Can Use an Agent
+
+An agent runs on its own profile. An agent allowed to run tools (`AllowToolInvocation`) also runs its own tools there. So a user who can reach such an agent can use the tools it carries, even tools that user may not pick directly. `IAIAgentAccessEvaluator` lets a host decide which agents each user may use:
+
+```csharp
+public interface IAIAgentAccessEvaluator
+{
+    Task<bool> IsAuthorizedAsync(ClaimsPrincipal user, AIProfile agent);
+}
+```
+
+The default implementation allows every agent, so nothing changes until a host registers its own:
+
+```csharp
+services.AddScoped<IAIAgentAccessEvaluator, MyAgentAccessEvaluator>();
+```
+
+The check covers three places:
+
+- **Chat Interactions at run time.** `AgentToolRegistryProvider` leaves out a selected agent the current user may not use, so a stored or tampered agent name cannot reach it. Each denial adds to the `crestapps.core.ai.tool.denied` counter with the reason `access` and writes a `Debug` log entry.
+- **Agent pickers.** The sample AI Profile, AI Template and Chat Interaction editors list only the agents the user may use. Call `GetAuthorizedSelectableAgentsAsync` to do the same in your own editors.
+- **Saves.** The same editors and `ChatInteractionHubBase` drop any agent name the user may not use. Call `GetAuthorizedSelectableAgentNamesAsync` to do the same.
+
+Some agents and requests are never checked:
+
+- **Always-available and system agents**, such as the PDF, Word, Tabular Data and Presentation agents. Users do not pick them, so a host that denies by default still keeps them.
+- **AI Sessions.** A session runs its AI Profile as configured, so the profile is the authorization boundary. Decide who may add an agent to a profile where the profile is edited.
+- **Requests without a caller.** When `IUserAccessor.User` is `null`, such as in a background task, the run-time check is skipped.
+
 ## Agent Execution Flow
 
 When the primary model invokes an agent tool, the following sequence occurs inside `AgentProxyTool`:

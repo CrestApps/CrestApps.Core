@@ -37,6 +37,7 @@
 @inject IOptions<OrchestratorOptions> OrchestratorOptionsAccessor
 @inject IOptions<AIToolDefinitionOptions> ToolOptionsAccessor
 @inject IAIToolAccessEvaluator ToolAccessEvaluator
+@inject IAIAgentAccessEvaluator AgentAccessEvaluator
 @inject AuthenticationStateProvider AuthenticationStateProvider
 @inject IOptions<ChatDocumentsOptions> ChatDocumentOptions
 @inject ISearchIndexProfileStore IndexProfileStore
@@ -943,9 +944,9 @@ else
             })
             .ToList();
 
-        var agentProfiles = await ProfileManager.GetAsync(AIProfileType.Agent);
+        // Only list agents the current user may use. The default IAIAgentAccessEvaluator allows every agent.
+        var agentProfiles = await AgentAccessEvaluator.GetAuthorizedSelectableAgentsAsync(await ProfileManager.GetAsync(AIProfileType.Agent), currentUser);
         model.AvailableAgents = agentProfiles
-            .Where(p => p.IsUserSelectableAgent())
             .OrderBy(p => p.DisplayText ?? p.Name, StringComparer.OrdinalIgnoreCase)
             .Select(p => new AgentSelectionItem
             {

@@ -35,6 +35,7 @@
 @inject IOptions<OrchestratorOptions> OrchestratorOptionsAccessor
 @inject IOptions<AIToolDefinitionOptions> ToolOptionsAccessor
 @inject IAIToolAccessEvaluator ToolAccessEvaluator
+@inject IAIAgentAccessEvaluator AgentAccessEvaluator
 @inject AuthenticationStateProvider AuthenticationStateProvider
 @inject IOptionsSnapshot<ClaudeOptions> ClaudeOptionsAccessor
 @inject ClaudeClientService ClaudeClientService
@@ -605,10 +606,10 @@
             })
             .ToList();
 
-        // AI Agents
-        var agentProfiles = await ProfileManager.GetAsync(AIProfileType.Agent);
+        // AI Agents. Only list agents the current user may use. The default IAIAgentAccessEvaluator
+        // allows every agent.
+        var agentProfiles = await AgentAccessEvaluator.GetAuthorizedSelectableAgentsAsync(await ProfileManager.GetAsync(AIProfileType.Agent), currentUser);
         _model.AvailableAgents = agentProfiles
-            .Where(p => p.IsUserSelectableAgent())
             .OrderBy(p => p.DisplayText ?? p.Name, StringComparer.OrdinalIgnoreCase)
             .Select(p => new AgentSelectionItem { Name = p.Name, DisplayText = p.DisplayText ?? p.Name })
             .ToList();

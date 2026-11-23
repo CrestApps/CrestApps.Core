@@ -174,6 +174,13 @@ The default implementation permits every tool. Consuming applications that enfor
 permissions replace it with an authorization-aware implementation, using the same permission model
 that backs the Chat Interaction tool-selection UI.
 
+:::note An agent's tools follow the agent
+This check covers the tools a Chat Interaction picks directly. An agent allowed to run tools
+(`AllowToolInvocation`) runs its own tools on its own profile, so they are not checked against the user.
+To decide who may use an agent, and so its tools, see
+[Controlling who can use an agent](./agents.md#controlling-who-can-use-an-agent).
+:::
+
 ### `IUserAccessor`
 
 The caller principal used by the completion pipeline (for auditing, rate limiting, and any

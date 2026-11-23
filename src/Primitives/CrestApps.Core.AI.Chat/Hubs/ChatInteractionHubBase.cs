@@ -496,11 +496,17 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
             .ToArray();
 
         var allAgents = await services.GetRequiredService<IAIProfileManager>().GetAsync(AIProfileType.Agent);
-        var userSelectableAgentNames = (allAgents ?? [])
-            .Where(profile => profile.IsUserSelectableAgent())
-            .Select(profile => profile.Name)
-            .Where(name => !string.IsNullOrWhiteSpace(name))
-            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var agentAccessEvaluator = services.GetService<IAIAgentAccessEvaluator>();
+
+        // Keep only the agents the caller may use, so a tampered save cannot store an agent the caller
+        // was never allowed to pick. The run-time check in the tool registry is the backstop.
+        var userSelectableAgentNames = agentAccessEvaluator is null
+            ? (allAgents ?? [])
+                .Where(profile => profile.IsUserSelectableAgent())
+                .Select(profile => profile.Name)
+                .Where(name => !string.IsNullOrWhiteSpace(name))
+                .ToHashSet(StringComparer.OrdinalIgnoreCase)
+            : await agentAccessEvaluator.GetAuthorizedSelectableAgentNamesAsync(allAgents, services.GetService<IUserAccessor>()?.User);
         interaction.AgentNames = (JsonHelper.GetStringArray(settings, "agentNames") ?? [])
             .Where(name => !string.IsNullOrWhiteSpace(name) && userSelectableAgentNames.Contains(name))
             .Distinct(StringComparer.OrdinalIgnoreCase)

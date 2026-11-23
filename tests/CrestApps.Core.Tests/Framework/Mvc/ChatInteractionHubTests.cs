@@ -1,4 +1,5 @@
 using System.Net;
+using System.Security.Claims;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Threading.Channels;
@@ -15,9 +16,11 @@ using CrestApps.Core.AI.ResponseHandling;
 using CrestApps.Core.AI.Services;
 using CrestApps.Core.AI.Tooling;
 using CrestApps.Core.Mvc.Web.Areas.ChatInteractions.Hubs;
+using CrestApps.Core.Security;
 using CrestApps.Core.Services;
 using CrestApps.Core.Startup.Shared.Services;
 using CrestApps.Core.Tests.Support;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
@@ -181,6 +184,79 @@ public sealed class ChatInteractionHubTests
 
         Assert.Equal(["selectable-tool"], interaction.ToolNames);
         Assert.Equal(["selectable-agent"], interaction.AgentNames);
+    }
+
+    [Fact]
+    public async Task SaveSettings_DropsAgentTheCallerMayNotUse()
+    {
+        var interaction = new ChatInteraction
+        {
+            ItemId = "chat-agent-access",
+            Title = "Agent access test",
+        };
+
+        var managerMock = new Mock<ICatalogManager<ChatInteraction>>();
+        managerMock.Setup(manager => manager.FindByIdAsync(interaction.ItemId))
+            .Returns(new ValueTask<ChatInteraction>(interaction));
+        managerMock.Setup(manager => manager.UpdateAsync(interaction, null))
+            .Returns(ValueTask.CompletedTask);
+
+        var profileManagerMock = new Mock<IAIProfileManager>();
+        profileManagerMock.Setup(manager => manager.GetAsync(AIProfileType.Agent, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(
+            [
+                BuildAgent("agent-a", "Agent A"),
+                BuildAgent("agent-b", "Agent B"),
+            ]);
+
+        var caller = new ClaimsPrincipal(new ClaimsIdentity([new Claim(ClaimTypes.Name, "caller")], "Test"));
+
+        var agentAccessEvaluatorMock = new Mock<IAIAgentAccessEvaluator>();
+        agentAccessEvaluatorMock.Setup(evaluator => evaluator.IsAuthorizedAsync(It.IsAny<ClaimsPrincipal>(), It.IsAny<AIProfile>()))
+            .ReturnsAsync((ClaimsPrincipal _, AIProfile agent) => agent.Name != "agent-b");
+
+        var callerMock = new Mock<IChatInteractionHubClient>();
+        callerMock.Setup(client => client.SettingsSaved(interaction.ItemId, interaction.Title))
+            .Returns(Task.CompletedTask);
+
+        var clientsMock = new Mock<IHubCallerClients<IChatInteractionHubClient>>();
+        clientsMock.SetupGet(clients => clients.Caller).Returns(callerMock.Object);
+
+        var hubContextMock = new Mock<HubCallerContext>();
+        hubContextMock.SetupGet(context => context.User).Returns(caller);
+
+        var serviceProvider = new ServiceCollection()
+            .AddSingleton(managerMock.Object)
+            .AddSingleton(new Mock<IChatInteractionPromptStore>(MockBehavior.Strict).Object)
+            .AddSingleton(profileManagerMock.Object)
+            .AddSingleton(agentAccessEvaluatorMock.Object)
+            .AddSingleton<IUserAccessor>(new UserAccessor(new HttpContextAccessor()))
+            .AddSingleton(Microsoft.Extensions.Options.Options.Create(new AIToolDefinitionOptions()))
+            .BuildServiceProvider();
+
+        var hub = new ChatInteractionHub(
+            serviceProvider,
+            TimeProvider.System,
+            CreateCitationCollector(),
+            CreateSiteSettingsStore(),
+            NullLogger<ChatInteractionHub>.Instance)
+        {
+            Clients = clientsMock.Object,
+            Context = hubContextMock.Object,
+        };
+
+        using var json = JsonDocument.Parse("""
+            {
+              "agentNames":["agent-a","agent-b"]
+            }
+            """);
+
+        await hub.SaveSettings(interaction.ItemId, json.RootElement.Clone());
+
+        Assert.Equal(["agent-a"], interaction.AgentNames);
+        agentAccessEvaluatorMock.Verify(
+            evaluator => evaluator.IsAuthorizedAsync(caller, It.Is<AIProfile>(agent => agent.Name == "agent-b")),
+            Times.Once);
     }
 
     [Fact]

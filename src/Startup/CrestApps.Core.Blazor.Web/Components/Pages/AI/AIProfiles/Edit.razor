@@ -47,6 +47,7 @@
 @inject IOptionsMonitor<CopilotOptions> CopilotOpts
 @inject IOptions<AIToolDefinitionOptions> ToolOpts
 @inject IAIToolAccessEvaluator ToolAccessEvaluator
+@inject IAIAgentAccessEvaluator AgentAccessEvaluator
 @inject AuthenticationStateProvider AuthenticationStateProvider
 @inject IOptionsMonitor<InteractionDocumentOptions> DocOpts
 @inject IOptions<ChatDocumentsOptions> ChatDocumentOptions
@@ -1701,9 +1702,10 @@ else if (_model != null)
         _model.AvailableToolInstances = toolInstances.OrderBy(i => i.Name, StringComparer.OrdinalIgnoreCase)
             .Select(i => new AIToolInstanceSelectionItem { ItemId = i.ItemId, Name = i.Name, Description = i.Description, Source = i.Source, IsSelected = selectedToolInstanceNames.Contains(i.Name) }).ToList();
 
-        var allAgents = await ProfileManager.GetAsync(AIProfileType.Agent) ?? [];
+        // Only list agents the current user may use. The default IAIAgentAccessEvaluator allows every agent.
+        var allAgents = await AgentAccessEvaluator.GetAuthorizedSelectableAgentsAsync(await ProfileManager.GetAsync(AIProfileType.Agent), currentUser);
         var selectedAgentNames = new HashSet<string>(_model.SelectedAgentNames ?? [], StringComparer.OrdinalIgnoreCase);
-        _model.AvailableAgents = allAgents.Where(a => a.IsUserSelectableAgent()).OrderBy(a => a.DisplayText ?? a.Name, StringComparer.OrdinalIgnoreCase)
+        _model.AvailableAgents = allAgents.OrderBy(a => a.DisplayText ?? a.Name, StringComparer.OrdinalIgnoreCase)
             .Select(a => new AgentSelectionItem { Name = a.Name, DisplayText = a.DisplayText ?? a.Name, Description = a.Description, IsSelected = selectedAgentNames.Contains(a.Name) }).ToList();
 
         var allDataSources = await DataSourceStore.GetAllAsync();
@@ -1755,12 +1757,9 @@ else if (_model != null)
 
     private async Task<string[]> GetValidAgentNamesAsync(IEnumerable<string> selectedNames)
     {
-        var allAgents = await ProfileManager.GetAsync(AIProfileType.Agent) ?? [];
-        var validAgentNames = allAgents
-            .Where(agent => agent.IsUserSelectableAgent())
-            .Select(agent => agent.Name)
-            .Where(name => !string.IsNullOrWhiteSpace(name))
-            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        // Reject any agent name the current user may not use, so a tampered request cannot save it.
+        var currentUser = (await AuthenticationStateProvider.GetAuthenticationStateAsync()).User;
+        var validAgentNames = await AgentAccessEvaluator.GetAuthorizedSelectableAgentNamesAsync(await ProfileManager.GetAsync(AIProfileType.Agent), currentUser);
 
         return (selectedNames ?? [])
             .Where(name => !string.IsNullOrWhiteSpace(name) && validAgentNames.Contains(name))

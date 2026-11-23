@@ -54,6 +54,7 @@ public sealed class AITemplateController : Controller
     private readonly AIToolDefinitionOptions _toolOptions;
     private readonly AIDeploymentParameterViewService _modelParameterViewService;
     private readonly IAIToolAccessEvaluator _toolAccessEvaluator;
+    private readonly IAIAgentAccessEvaluator _agentAccessEvaluator;
     private readonly IAIDeploymentCapabilityService _capabilityService;
 
     public AITemplateController(
@@ -76,6 +77,7 @@ public sealed class AITemplateController : Controller
         IOptions<AIToolDefinitionOptions> toolOptions,
         AIDeploymentParameterViewService modelParameterViewService,
         IAIToolAccessEvaluator toolAccessEvaluator,
+        IAIAgentAccessEvaluator agentAccessEvaluator,
         IAIDeploymentCapabilityService capabilityService)
     {
         _catalog = catalog;
@@ -97,6 +99,7 @@ public sealed class AITemplateController : Controller
         _toolOptions = toolOptions.Value;
         _modelParameterViewService = modelParameterViewService;
         _toolAccessEvaluator = toolAccessEvaluator;
+        _agentAccessEvaluator = agentAccessEvaluator;
         _capabilityService = capabilityService;
     }
 
@@ -284,9 +287,10 @@ public sealed class AITemplateController : Controller
         var mcpConnections = await _mcpConnectionCatalog.GetAllAsync();
         var selectedMcpIds = new HashSet<string>(model.SelectedMcpConnectionIds ?? [], StringComparer.Ordinal);
         model.AvailableMcpConnections = mcpConnections.OrderBy(c => c.DisplayText, StringComparer.OrdinalIgnoreCase).Select(c => new McpConnectionSelectionItem { ItemId = c.ItemId, DisplayText = c.DisplayText, Source = c.Source, IsSelected = selectedMcpIds.Contains(c.ItemId), }).ToList();
-        var allAgents = await _profileManager.GetAsync(AIProfileType.Agent) ?? [];
+        // Only list agents the current user may use. The default IAIAgentAccessEvaluator allows every agent.
+        var allAgents = await _agentAccessEvaluator.GetAuthorizedSelectableAgentsAsync(await _profileManager.GetAsync(AIProfileType.Agent), User);
         var selectedAgentNames = new HashSet<string>(model.SelectedAgentNames ?? [], StringComparer.OrdinalIgnoreCase);
-        model.AvailableAgents = allAgents.Where(a => a.IsUserSelectableAgent()).OrderBy(a => a.DisplayText ?? a.Name, StringComparer.OrdinalIgnoreCase).Select(a => new AgentSelectionItem { Name = a.Name, DisplayText = a.DisplayText ?? a.Name, Description = a.Description, IsSelected = selectedAgentNames.Contains(a.Name), }).ToList();
+        model.AvailableAgents = allAgents.OrderBy(a => a.DisplayText ?? a.Name, StringComparer.OrdinalIgnoreCase).Select(a => new AgentSelectionItem { Name = a.Name, DisplayText = a.DisplayText ?? a.Name, Description = a.Description, IsSelected = selectedAgentNames.Contains(a.Name), }).ToList();
         model.AvailableSystemPromptTemplates = (await _aiTemplateService.GetByKindAsync(AITemplateSources.SystemPrompt))
             .Where(template => template.Metadata.IsListable)
             .OrderBy(template => template.Metadata.Title ?? template.Id, StringComparer.OrdinalIgnoreCase)
@@ -323,12 +327,8 @@ public sealed class AITemplateController : Controller
 
     private async Task<string[]> GetValidAgentNamesAsync(IEnumerable<string> selectedNames)
     {
-        var allAgents = await _profileManager.GetAsync(AIProfileType.Agent) ?? [];
-        var validNames = allAgents
-            .Where(agent => agent.IsUserSelectableAgent())
-            .Select(agent => agent.Name)
-            .Where(name => !string.IsNullOrWhiteSpace(name))
-            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        // Reject any agent name the current user may not use, so a tampered form post cannot save it.
+        var validNames = await _agentAccessEvaluator.GetAuthorizedSelectableAgentNamesAsync(await _profileManager.GetAsync(AIProfileType.Agent), User);
 
         return (selectedNames ?? [])
             .Where(name => !string.IsNullOrWhiteSpace(name) && validNames.Contains(name))

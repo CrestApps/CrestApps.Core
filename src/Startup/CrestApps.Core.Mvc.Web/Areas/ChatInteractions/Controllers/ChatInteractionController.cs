@@ -66,6 +66,7 @@ public sealed class ChatInteractionController : Controller
     private readonly GitHubOAuthService _oauthService;
     private readonly AIToolDefinitionOptions _toolOptions;
     private readonly IAIToolAccessEvaluator _toolAccessEvaluator;
+    private readonly IAIAgentAccessEvaluator _agentAccessEvaluator;
     private readonly ISourceCatalog<AIToolInstance> _toolInstanceCatalog;
     private readonly AIDeploymentParameterViewService _modelParameterViewService;
     private readonly IAIDeploymentCapabilityService _capabilityService;
@@ -95,6 +96,7 @@ public sealed class ChatInteractionController : Controller
         GitHubOAuthService oauthService,
         IOptions<AIToolDefinitionOptions> toolOptions,
         IAIToolAccessEvaluator toolAccessEvaluator,
+        IAIAgentAccessEvaluator agentAccessEvaluator,
         ISourceCatalog<AIToolInstance> toolInstanceCatalog,
         AIDeploymentParameterViewService modelParameterViewService,
         IAIDeploymentCapabilityService capabilityService)
@@ -123,6 +125,7 @@ public sealed class ChatInteractionController : Controller
         _oauthService = oauthService;
         _toolOptions = toolOptions.Value;
         _toolAccessEvaluator = toolAccessEvaluator;
+        _agentAccessEvaluator = agentAccessEvaluator;
         _toolInstanceCatalog = toolInstanceCatalog;
         _modelParameterViewService = modelParameterViewService;
         _capabilityService = capabilityService;
@@ -453,11 +456,11 @@ public sealed class ChatInteractionController : Controller
             })
             .ToList();
 
-        // AI Agents
-        var agentProfiles = await _profileManager.GetAsync(AIProfileType.Agent);
+        // AI Agents. Only list agents the current user may use. The default IAIAgentAccessEvaluator
+        // allows every agent.
+        var agentProfiles = await _agentAccessEvaluator.GetAuthorizedSelectableAgentsAsync(await _profileManager.GetAsync(AIProfileType.Agent), User);
         var selectedAgentNames = new HashSet<string>(model.SelectedAgentNames ?? [], StringComparer.OrdinalIgnoreCase);
         model.AvailableAgents = agentProfiles
-            .Where(p => p.IsUserSelectableAgent())
             .OrderBy(p => p.DisplayText ?? p.Name, StringComparer.OrdinalIgnoreCase)
             .Select(p => new AgentSelectionItem
             {
@@ -619,11 +622,11 @@ public sealed class ChatInteractionController : Controller
             })
             .ToList();
 
-        // AI Agents
-        var agentProfiles = await _profileManager.GetAsync(AIProfileType.Agent);
+        // AI Agents. Only list agents the current user may use. The default IAIAgentAccessEvaluator
+        // allows every agent.
+        var agentProfiles = await _agentAccessEvaluator.GetAuthorizedSelectableAgentsAsync(await _profileManager.GetAsync(AIProfileType.Agent), User);
         var selectedAgentNames = new HashSet<string>(model.SelectedAgentNames ?? [], StringComparer.OrdinalIgnoreCase);
         model.AvailableAgents = agentProfiles
-            .Where(p => p.IsUserSelectableAgent())
             .OrderBy(p => p.DisplayText ?? p.Name, StringComparer.OrdinalIgnoreCase)
             .Select(p => new AgentSelectionItem
             {
@@ -864,13 +867,9 @@ public sealed class ChatInteractionController : Controller
 
     private async Task<List<string>> GetValidAgentNamesAsync(IEnumerable<string> selectedNames)
     {
-        var agentProfiles = await _profileManager.GetAsync(AIProfileType.Agent);
-
-        var allNames = agentProfiles
-            .Where(profile => profile.IsUserSelectableAgent())
-            .Select(p => p.Name)
-            .Where(name => !string.IsNullOrWhiteSpace(name))
-            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        // Reject any agent name the current user may not use, so a tampered form post cannot save it.
+        // This complements the run-time check performed when a Chat Interaction sends a message.
+        var allNames = await _agentAccessEvaluator.GetAuthorizedSelectableAgentNamesAsync(await _profileManager.GetAsync(AIProfileType.Agent), User);
 
         return (selectedNames ?? [])
                     .Where(name => !string.IsNullOrWhiteSpace(name) && allNames.Contains(name))

@@ -1011,6 +1011,7 @@ public static class ServiceCollectionExtensions
         services.TryAddSingleton<ITextTokenizer, LuceneTextTokenizer>();
 
         services.TryAddScoped<IAIToolAccessEvaluator, DefaultAIToolAccessEvaluator>();
+        services.TryAddScoped<IAIAgentAccessEvaluator, DefaultAIAgentAccessEvaluator>();
         services.TryAddScoped<PreemptiveSearchQueryProvider>();
 
         services.AddPromotSecurityLayer();
