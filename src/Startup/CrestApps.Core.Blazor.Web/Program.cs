@@ -52,6 +52,7 @@ using CrestApps.Core.Startup.Shared.Services;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.Extensions.Options;
+using ModelContextProtocol.AspNetCore;
 
 // =============================================================================
 // CrestApps AI Framework - Blazor Example Application
@@ -251,7 +252,16 @@ _ = builder.Services.AddMcpServer(options =>
         Name = "CrestApps Blazor MCP Server",
         Version = "1.0",
     };
-}).WithHttpTransport()
+}).WithHttpTransport(options =>
+{
+    // The SDK defaults to the stateless mode, which does not map GET and DELETE /mcp. Keep sessions for
+    // clients that use the initialize handshake so they can open the server-to-client stream and end their
+    // session; clients on the 2026-07-28 revision or later are still served statelessly. Set
+    // CrestApps:AI:McpServer:SessionMode to Stateless when the host runs on several nodes without session affinity.
+    options.SessionMode = builder.Configuration.GetValue(
+        "CrestApps:AI:McpServer:SessionMode",
+        HttpServerSessionMode.StatefulForInitializeClients);
+})
 .WithCrestAppsHandlers();
 
 builder.Services.AddCoreAITool<CalculatorTool>(CalculatorTool.TheName)
@@ -299,7 +309,10 @@ app.UseHttpsRedirection()
     .UseAuthorization()
     .UseAntiforgery();
 
-app.UseWhen(context => context.Request.Path.StartsWithSegments("/mcp"), branch =>
+// Only the MCP endpoint itself: the admin pages that manage MCP connections, prompts and resources also
+// start with an /mcp segment, and must keep using the normal sign-in. Routing sends /mcp/ to the endpoint too,
+// so trailing slashes are trimmed before comparing.
+app.UseWhen(context => string.Equals(context.Request.Path.Value?.TrimEnd('/'), "/mcp", StringComparison.OrdinalIgnoreCase), branch =>
 {
     branch.Use(async (context, next) =>
     {

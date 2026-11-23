@@ -1,3 +1,4 @@
+using System.Text.Encodings.Web;
 using System.Text.Json;
 using CrestApps.Core.AI.Extensions;
 using Microsoft.Extensions.AI;
@@ -11,6 +12,14 @@ namespace CrestApps.Core.Mvc.Web.Tools;
 public sealed class CalculatorTool : AIFunction
 {
     public const string TheName = "calculator";
+
+    // The result is read by people and models, not embedded in HTML, so keep "+", the multiplication sign and the
+    // division sign readable instead of escaping them (for example "+" as \u002B).
+    private static readonly JsonSerializerOptions _resultJsonOptions = new()
+    {
+        Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
+    };
+
     private static readonly JsonElement _jsonSchema = JsonSerializer.Deserialize<JsonElement>("""
     {
       "type": "object",
@@ -80,7 +89,7 @@ public sealed class CalculatorTool : AIFunction
             return ValueTask.FromResult<object>(JsonSerializer.Serialize(new { error }));
         }
 
-        return ValueTask.FromResult<object>(JsonSerializer.Serialize(new { expression = $"{a} {GetSymbol(operation)} {b}", result, }));
+        return ValueTask.FromResult<object>(JsonSerializer.Serialize(new { expression = $"{a} {GetSymbol(operation)} {b}", result, }, _resultJsonOptions));
     }
 
     private static bool TryGetNumber(AIFunctionArguments arguments, string key, out double value)
@@ -142,8 +151,8 @@ public sealed class CalculatorTool : AIFunction
         {
             "add" => "+",
             "subtract" => "-",
-            "multiply" => "?",
-            "divide" => "?",
+            "multiply" => "\u00D7",
+            "divide" => "\u00F7",
             _ => "?",
         };
     }
