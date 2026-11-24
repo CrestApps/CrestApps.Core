@@ -1,6 +1,7 @@
 using CrestApps.Core.AI.Models;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 
 namespace CrestApps.Core.AI.Tooling;
@@ -81,8 +82,8 @@ public sealed class DefaultToolMaterializer : IToolMaterializer
         foreach (var entry in orderedEntries)
         {
             if (enforceAccess &&
-                IsListable(entry) &&
-                !await _toolAccessEvaluator.IsAuthorizedAsync(options.User, entry.Name))
+                TryGetListableDefinition(entry, out var definition) &&
+                !await _toolAccessEvaluator.IsAuthorizedAsync(options.User, entry.Name, definition))
             {
                 (deniedToolNames ??= []).Add(entry.Name);
 
@@ -92,23 +93,6 @@ public sealed class DefaultToolMaterializer : IToolMaterializer
                 {
                     _logger.LogDebug(
                         "Tool '{ToolName}' from {Source} ({Id}) denied by access evaluator for the current caller.",
-                        entry.Name, entry.Source, entry.Id);
-                }
-
-                continue;
-            }
-
-            // A tool that needs a person's approval is only offered when the caller can ask for one. Agents run
-            // inside a tool call, and realtime, background and other non-interactive requests have nobody to ask,
-            // so offering it there would run it unasked.
-            if (entry.RequiresApproval && !options.SupportsToolApproval)
-            {
-                AITelemetry.ToolDenials.Add(1, new KeyValuePair<string, object>(AITelemetry.ReasonTag, "approval"));
-
-                if (_logger.IsEnabled(LogLevel.Debug))
-                {
-                    _logger.LogDebug(
-                        "Tool '{ToolName}' from {Source} ({Id}) requires approval and the caller cannot ask for one. Skipping.",
                         entry.Name, entry.Source, entry.Id);
                 }
 
@@ -138,13 +122,43 @@ public sealed class DefaultToolMaterializer : IToolMaterializer
             {
                 var tool = await entry.CreateAsync(_serviceProvider);
 
-                if (tool is not null)
+                if (tool is null)
                 {
-                    tools.Add(WrapForApproval(tool, entry, options));
+                    if (_logger.IsEnabled(LogLevel.Debug))
+                    {
+                        _logger.LogDebug("ToolFactory returned null for '{ToolName}' ({Id}).", entry.Name, entry.Id);
+                    }
+
+                    continue;
                 }
-                else if (_logger.IsEnabled(LogLevel.Debug))
+
+                var offered = WrapForApproval(tool, entry, options, _logger);
+
+                if (offered is null)
                 {
-                    _logger.LogDebug("ToolFactory returned null for '{ToolName}' ({Id}).", entry.Name, entry.Id);
+                    // The tool requires a person's approval and cannot be wrapped for one, so it is never offered.
+                    AITelemetry.ToolDenials.Add(1, new KeyValuePair<string, object>(AITelemetry.ReasonTag, "approval"));
+
+                    _logger.LogWarning(
+                        "Tool '{ToolName}' from {Source} ({Id}) requires approval but is not an AIFunction, so no approval can be asked for it. It is left out.",
+                        entry.Name, entry.Source, entry.Id);
+                }
+                else if (offered is ApprovalUnavailableAIFunction)
+                {
+                    // The tool requires a person's approval and this request cannot ask for one, so it never runs.
+                    AITelemetry.ToolDenials.Add(1, new KeyValuePair<string, object>(AITelemetry.ReasonTag, "approval"));
+
+                    if (_logger.IsEnabled(LogLevel.Debug))
+                    {
+                        _logger.LogDebug(
+                            "Tool '{ToolName}' from {Source} ({Id}) requires approval and the caller cannot ask for one. It is offered as a tool that does not run.",
+                            entry.Name, entry.Source, entry.Id);
+                    }
+                }
+
+                if (offered is not null)
+                {
+                    tools.Add(offered);
                 }
             }
             catch (Exception ex)
@@ -161,35 +175,72 @@ public sealed class DefaultToolMaterializer : IToolMaterializer
     }
 
     /// <summary>
-    /// Wraps a tool that requires an approval in <see cref="ApprovalRequiredAIFunction"/> when the caller can ask a
-    /// person for one, so the function invocation pauses for the approval instead of running it.
+    /// Prepares a tool that requires an approval for the request. When the caller can ask a person, the tool is
+    /// wrapped in <see cref="ApprovalRequiredAIFunction"/>, so the function invocation pauses for the approval instead
+    /// of running it. When the caller cannot ask, the tool never runs: it is replaced with a function of the same
+    /// name and schema that does not run it and tells the model why, so the model can tell the user. When the
+    /// request's approval policy lets the tool run without asking (see <see cref="ToolApprovalPolicy.RunsWithoutAsking"/>),
+    /// it is wrapped in <see cref="AutoApprovedAIFunction"/>, which runs it and logs and counts each call. A tool that
+    /// does not require an approval is returned as it is.
     /// </summary>
     /// <param name="tool">The materialized tool.</param>
     /// <param name="entry">The registry entry the tool came from.</param>
     /// <param name="options">The materialization options.</param>
-    /// <returns>The tool to offer.</returns>
+    /// <param name="logger">The logger the calls that run without asking are logged to.</param>
+    /// <returns>
+    /// The tool to offer, or <see langword="null"/> when the tool must be approved and is not an
+    /// <see cref="AIFunction"/>: such a tool can be neither wrapped for an approval nor replaced, nor audited when it
+    /// runs without asking, so it is left out, whatever the caller and the policy.
+    /// </returns>
 #pragma warning disable MEAI001 // ApprovalRequiredAIFunction is a preview API of Microsoft.Extensions.AI.
-    internal static AITool WrapForApproval(AITool tool, ToolRegistryEntry entry, ToolMaterializationOptions options)
+    internal static AITool WrapForApproval(AITool tool, ToolRegistryEntry entry, ToolMaterializationOptions options, ILogger logger = null)
     {
-        if (!options.SupportsToolApproval ||
-            !entry.RequiresApproval ||
-            tool is not AIFunction function ||
-            tool is ApprovalRequiredAIFunction)
+        ArgumentNullException.ThrowIfNull(tool);
+        ArgumentNullException.ThrowIfNull(entry);
+        options ??= ToolMaterializationOptions.Default;
+
+        if (!entry.RequiresApproval ||
+            tool is ApprovalRequiredAIFunction ||
+            tool is ApprovalUnavailableAIFunction ||
+            tool is AutoApprovedAIFunction)
         {
             return tool;
         }
 
-        return new ApprovalRequiredAIFunction(function);
+        // A tool that is not a function (a provider-hosted tool, for example) is not run by the function invocation,
+        // so an approval cannot be asked for it: offering it would let it run unasked.
+        if (tool is not AIFunction function)
+        {
+            return null;
+        }
+
+        // The approval policy lets the tool run without asking: its kind requires the approval, not its own
+        // registration. The call is audited when it runs.
+        if (options.ApprovalPolicy?.RunsWithoutAsking(entry) == true)
+        {
+            return new AutoApprovedAIFunction(function, entry.Kind, logger ?? NullLogger.Instance);
+        }
+
+        if (options.SupportsToolApproval)
+        {
+            return new ApprovalRequiredAIFunction(function);
+        }
+
+        return new ApprovalUnavailableAIFunction(function);
     }
 #pragma warning restore MEAI001
 
     /// <summary>
-    /// Determines whether an entry represents a listable (user-selectable) tool. Only listable tools are
+    /// Gets the definition of an entry that represents a listable (user-selectable) tool. Only listable tools are
     /// subject to the per-user access check; system tools are auto-injected and hidden tools are
-    /// dependency-only, so both bypass it.
+    /// dependency-only, so both bypass it. The access check accepts the tool's name or one of its aliases, so
+    /// access granted for an earlier name of a renamed tool still applies.
     /// </summary>
-    private bool IsListable(ToolRegistryEntry entry)
+    /// <param name="entry">The registry entry.</param>
+    /// <param name="definition">The definition of the listable tool.</param>
+    /// <returns><see langword="true"/> when the entry is a listable tool.</returns>
+    private bool TryGetListableDefinition(ToolRegistryEntry entry, out AIToolDefinitionEntry definition)
     {
-        return _toolDefinitions.Value.Tools.TryGetValue(entry.Name, out var definition) && definition.IsSelectable();
+        return _toolDefinitions.Value.TryGetTool(entry.Name, out definition) && definition.IsSelectable();
     }
 }

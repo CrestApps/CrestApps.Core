@@ -37,6 +37,17 @@ public static class AITelemetry
     public const string ToolNameTag = "tool.name";
 
     /// <summary>
+    /// The metric tag that records the <see cref="Tooling.AIToolKind"/> of a tool.
+    /// </summary>
+    public const string ToolKindTag = "tool.kind";
+
+    /// <summary>
+    /// The metric tag that records whether a tool call was made inside an agent (<c>true</c>) or by the assistant
+    /// itself (<c>false</c>).
+    /// </summary>
+    public const string AgentTag = "agent";
+
+    /// <summary>
     /// The span attribute that records the chat session id. Ids are unbounded, so they never go on a metric.
     /// </summary>
     public const string SessionIdAttribute = "crestapps.session.id";
@@ -266,6 +277,16 @@ public static class AITelemetry
         "crestapps.core.ai.tool.denied",
         "{tool}",
         "The number of tools left out of a request because the caller may not use them.");
+
+    /// <summary>
+    /// The number of tool calls that required an approval and ran without asking, because the request's approval
+    /// policy allowed it. Tagged with <see cref="ReasonTag"/>, <see cref="ToolKindTag"/> and <see cref="AgentTag"/>.
+    /// Tool names stay out of the tags; the Information log of each call names the tool.
+    /// </summary>
+    public static readonly Counter<long> ToolAutoApprovals = CrestAppsTelemetry.Meter.CreateCounter<long>(
+        "crestapps.core.ai.tool.auto_approved",
+        "{call}",
+        "The number of tool calls that required an approval and ran without asking.");
 
     /// <summary>
     /// The number of AI requests retried, tagged with <see cref="CrestAppsTelemetry.OperationTag"/> for the

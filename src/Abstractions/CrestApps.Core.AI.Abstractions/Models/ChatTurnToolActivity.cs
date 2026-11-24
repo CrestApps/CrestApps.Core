@@ -18,6 +18,13 @@ public sealed class ChatTurnToolActivity
     public bool ContinuesOnNextPage { get; set; }
 
     /// <summary>
+    /// Gets or sets the runs of the agents that paused in this turn because a tool call of theirs waits for an
+    /// approval. The run that resumes continues each agent from here and clears the list. It is kept on the
+    /// server and is not part of what a client is sent.
+    /// </summary>
+    public List<ChatTurnAgentRun> AgentRuns { get; set; } = [];
+
+    /// <summary>
     /// Gets a value indicating whether a call waits for an approval or for the client's result.
     /// </summary>
     public bool HasPendingCalls => ToolCalls.Any(call => call.Status is ChatTurnToolCallStatus.AwaitingApproval or ChatTurnToolCallStatus.AwaitingClient);

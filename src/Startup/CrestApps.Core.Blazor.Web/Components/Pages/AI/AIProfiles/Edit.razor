@@ -756,6 +756,14 @@ else if (_model != null)
                         }
 
                         <h6 class="mb-2 mt-4 border-bottom pb-2"><i class="fa-solid fa-screwdriver-wrench"></i> AI Tools</h6>
+                        <div class="mb-3">
+                            <label class="form-label" for="runToolsWithoutAsking">Tool approval</label>
+                            <InputSelect class="form-select" id="runToolsWithoutAsking" @bind-Value="_model.RunToolsWithoutAsking">
+                                <option value="false">Ask for approval (recommended)</option>
+                                <option value="true">Allow all tools without asking</option>
+                            </InputSelect>
+                            <div class="form-text">Ask for approval shows Allow and Deny before a tool runs. Allow all skips that, except for tools that always ask. An agent's tools skip it only when the agent and the profile calling it both allow all.</div>
+                        </div>
                         @if (_model.AvailableTools.Count == 0)
                         {
                             <div class="alert alert-info mb-0"><i class="fa-solid fa-circle-info"></i> No selectable AI tools are registered.</div>
@@ -1672,7 +1680,7 @@ else if (_model != null)
         var currentUser = (await AuthenticationStateProvider.GetAuthenticationStateAsync()).User;
         var authorizedTools = await SelectableToolAccessFilter.GetAuthorizedSelectableToolsAsync(ToolOpts.Value, ToolAccessEvaluator, currentUser);
         _model.AvailableTools = authorizedTools
-            .Select(kvp => new ToolSelectionItem { Name = kvp.Key, Title = kvp.Value.Title ?? kvp.Key, Description = kvp.Value.Description, Category = kvp.Value.Category ?? "Miscellaneous", IsSelected = selectedNames.Contains(kvp.Key) })
+            .Select(kvp => new ToolSelectionItem { Name = kvp.Key, Title = kvp.Value.Title ?? kvp.Key, Description = kvp.Value.Description, Category = kvp.Value.Category ?? "Miscellaneous", IsSelected = selectedNames.Contains(kvp.Key) || kvp.Value.IsNamedIn(selectedNames) })
             .OrderBy(t => t.Category).ThenBy(t => t.Title).ToList();
 
         var connections = await A2ACatalog.GetAllAsync();

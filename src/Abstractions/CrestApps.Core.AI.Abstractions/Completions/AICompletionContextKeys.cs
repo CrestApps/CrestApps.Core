@@ -96,9 +96,18 @@ public static class AICompletionContextKeys
     /// <summary>
     /// The key whose <see langword="true"/> value tells the tool pipeline that the caller can ask a person to
     /// approve a tool call, such as an AG-UI chat run. Tools that require an approval then pause the run for one
-    /// instead of running at once.
+    /// instead of running at once. When it is not set, such tools never run: each is replaced with one that does not
+    /// run and tells the model why.
     /// </summary>
     public const string ToolApprovalSupported = "ToolApprovalSupported";
+
+    /// <summary>
+    /// The key of the request's approval policy (a <see cref="Tooling.ToolApprovalPolicy"/>), resolved from the
+    /// profile's <see cref="Models.AIToolApprovalSettings"/>. The tools it covers run without asking, even where nobody
+    /// could be asked. Each profile sets it for its own requests. An agent's request gets the stricter of the agent's
+    /// policy and its caller's (see <see cref="Tooling.ToolApprovalPolicy.ForAgent"/>).
+    /// </summary>
+    public const string ToolApprovalPolicy = "ToolApprovalPolicy";
 
     /// <summary>
     /// The key of the context the client sent with the message (an <see cref="IReadOnlyList{T}"/> of

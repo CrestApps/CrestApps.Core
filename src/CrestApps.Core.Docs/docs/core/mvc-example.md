@@ -255,7 +255,7 @@ The MVC admin chat widget now stays bound to the configured admin-chat profile i
 
 The MVC sample also now records provider usage in a dedicated **AI Usage Analytics** report. The report groups tracked completion calls by authenticated username or **Anonymous**, then breaks usage down by completion client and resolved model/deployment while showing total calls, distinct sessions, distinct chat interactions, token totals, and average latency. Session analytics now keep token totals and user-visible response latency separate so the main chat analytics page still shows per-session performance while the usage report captures provider activity more directly.
 
-`Program.cs` also registers a sample `sendEmail` AI function in the MVC host. The sample tool does not deliver real mail — it logs the requested recipient, subject, and message so you can see how host-specific tools plug into the shared framework.
+`Program.cs` also registers a sample `sendEmail` AI function in the MVC host. The sample tool does not deliver real mail — it logs the requested recipient, subject, and message so you can see how host-specific tools plug into the shared framework. It is registered with `.AsExternal()`, so the chat asks you to allow each call before it runs, also when the tool sits inside an agent; the calculator is registered with `.AsRead()`. See [Tool Kinds](./tools.md#tool-kinds).
 
 ### Section 9 — Model Context Protocol (MCP)
 
@@ -278,6 +278,8 @@ builder.Services
         .WithDescription("Performs basic arithmetic.")
 
         .WithCategory("Utilities")
+
+        .AsRead()
 
         .Selectable();
 

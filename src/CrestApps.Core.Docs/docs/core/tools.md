@@ -57,7 +57,118 @@ Returns an `AIToolBuilder<TTool>` for fluent configuration:
 | `.WithoutDependency(string)` / `.WithoutDependencies(params string[])` | Removes previously registered dependency tools |
 | `.Hidden()` | Makes the tool private to explicitly named profiles or agents and excludes it from picker-style/public export surfaces |
 | `.Selectable()` | Makes the tool visible in UI and assignable to profiles |
-| `.RequireApproval()` | Asks the user to approve each call before it runs, in chat runs that can ask (AG-UI runs). Requests that cannot ask (agents, realtime, background) are not offered the tool. See [AG-UI tool approvals](./ag-ui.md#tool-approvals) |
+| `.RequireApproval()` | Asks the user to approve each call before it runs, in chat runs that can ask (AG-UI runs). Where nobody can be asked (other chats, realtime, workflows, background work), the tool does not run, and the model is told why. `.RequireApproval(false)` lets a tool run without asking. See [AG-UI tool approvals](./ag-ui.md#tool-approvals) |
+| `.AsRead()` / `.AsWrite()` / `.AsDestructive()` / `.AsExternal()` / `.AsSecurity()` | Says what the tool does (its kind). See [Tool Kinds](#tool-kinds) |
+| `.WithKind(AIToolKind)` | Sets the kind from a value |
+| `.WithAlias(string, bool grantsAccess = false)` / `.WithAliases(params string[])` | Adds an earlier name of the tool, so stored references keep working; `grantsAccess: true` also carries the earlier name's access (for a rename). See [Renaming a Tool](#renaming-a-tool) |
+
+### Tool Kinds
+
+A kind says what a tool does to the application's data and to the outside world. Hosts use it to decide from data which tools need an approval and which tools a setting that exposes every tool leaves out.
+
+| Kind | Builder method | Meaning | Needs an approval |
+|------|----------------|---------|-------------------|
+| `Read` | `.AsRead()` | Returns data and changes nothing | No |
+| `Write` | `.AsWrite()` | Creates or changes data that can be changed back | No |
+| `Destructive` | `.AsDestructive()` | Deletes data, or cannot be undone | Yes |
+| `External` | `.AsExternal()` | Sends something outside the application (an email, a text message, a call, a webhook), calls a paid service, or moves money | Yes |
+| `Security` | `.AsSecurity()` | Changes who can access what, how people sign in, secrets, or what code or templates the application runs | Yes |
+
+```csharp
+builder.Services
+    .AddCoreAITool<ListOrdersTool>("listOrders")
+        .AsRead()
+        .Selectable();
+
+builder.Services
+    .AddCoreAITool<DeleteOrderTool>("deleteOrder")
+        .AsDestructive()
+        .Selectable();
+```
+
+The kind does these things:
+
+- A `Destructive`, `External` or `Security` tool requires an approval, as if its registration called `.RequireApproval()`. Call `.RequireApproval()` for the exceptions: on a tool of another kind that should ask, or as `.RequireApproval(false)` on a tool of one of these kinds that should not ask. The explicit call wins, whichever is called first.
+- `ExposeAllTools` of the [MCP server](../mcp/server.md) and of [WebMCP](../mcp/webmcp.md) leaves out the `Destructive` and `Security` tools, and every tool that requires an approval (so `External` tools too, unless they call `.RequireApproval(false)`), because their clients call a tool directly and cannot be asked. Name such a tool in the `Tools` list to expose it.
+- The MCP server tells its clients the kind through the MCP tool annotations (`readOnlyHint`, `destructiveHint`, `openWorldHint`), and the WebMCP tool list has a `kind` value for each tool.
+- `AIToolDefinitionEntry.Kind` and `ToolRegistryEntry.Kind` carry the kind, so a tool picker or a custom tool pipeline can read it.
+
+A tool registered without a kind has `AIToolKind.Unspecified` and behaves as before: it asks for an approval only when its registration calls `.RequireApproval()`, and `ExposeAllTools` includes it unless it does. An approval is a confirmation for the person in the chat, not an access check. Callers that cannot ask for an approval are described in [AG-UI tool approvals](./ag-ui.md#tool-approvals).
+
+### Running a Profile's Tools Without Asking
+
+A profile's `AIToolApprovalSettings` (stored in `AIProfile.Settings`) can let the tools that require an approval because of their kind run without asking. A rule per kind sets the `ToolApprovalMode`:
+
+```csharp
+profile.AlterSettings<AIToolApprovalSettings>(settings =>
+{
+    settings.Kinds[nameof(AIToolKind.External)] = new ToolApprovalRule { Mode = ToolApprovalMode.Never };
+});
+
+// Or every kind that requires an approval (Destructive, External and Security):
+profile.AlterSettings<AIToolApprovalSettings>(settings => settings.SetRunAllWithoutAsking(true));
+```
+
+| Mode | What it does |
+|---|---|
+| `EveryCall` (the default, and a kind with no rule) | Asks before every call. |
+| `OncePerSession` | Reserved for session grants. Until they exist, it asks before every call. |
+| `Never` | Runs without asking. Each call is logged at Information level and counted in `AITelemetry.ToolAutoApprovals`. |
+
+The MVC and Blazor sample hosts show it in the **AI Tools** section of the profile editor's **Capabilities** tab, as **Tool approval**: **Ask for approval (recommended)**, the default, or **Allow all tools without asking** (`Never` for Destructive, External and Security).
+
+| Setting | A tool that requires an approval because of its kind, where a person can be asked (an AG-UI chat run) | Where nobody can be asked (see [Callers that cannot be asked](#callers-that-cannot-be-asked)) |
+|---|---|---|
+| Ask for approval (default) | Asks first: **Allow** or **Deny** | Does not run, and the model is told why |
+| Allow all tools without asking | Runs at once | Runs at once |
+
+- **A tool's own floor is never lowered.** A tool registered with an explicit `.RequireApproval()` (`AIToolDefinitionEntry.RequiresApprovalExplicit`), and a consequential WebMCP page tool while **Allow consequential page tools** is off, have an approval floor (`ToolRegistryEntry.ApprovalFloor`): they ask, whatever the profile says.
+- **Inside an agent, the stricter side wins.** A call an agent makes runs without asking only when both the agent's profile and the profile that calls it allow it (`ToolApprovalPolicy.ForAgent`). An agent set to Allow all still asks when its caller asks, so one shared or always-available agent cannot take approvals away from the profiles that use it. A caller with no profile, such as an MCP client that calls the agent directly, allows nothing.
+- **Each call is audited.** A tool that runs without asking is wrapped so that every call writes an Information log (the tool, its kind, whether an agent made the call, and the chat session) and adds to the `crestapps.core.ai.tool.auto_approved` counter, tagged with the reason, the tool kind and whether an agent made the call. A tool that is not an `AIFunction` cannot be audited, so it is still left out.
+- **Only the approval is skipped.** The profile still has only the tools picked for it, and the access checks are unchanged: a Chat Interaction checks each listable tool it picked with `IAIToolAccessEvaluator`, and an AI Session runs the profile's tools as configured. An agent's tools follow the agent, not the person who reaches it, so control who can use an agent that runs its tools without asking.
+- `AIProfileCompletionContextBuilderHandler` resolves each profile's settings into a `ToolApprovalPolicy` under `AICompletionContextKeys.ToolApprovalPolicy` (read it with `GetToolApprovalPolicy()`), and the tool pipeline passes it to the tool materializer as `ToolMaterializationOptions.ApprovalPolicy`.
+- It does not change `ExposeAllTools` of the MCP server or WebMCP, nor the post-session tasks, where a tool that requires an approval never runs.
+
+Turn it on only for a profile whose tools are safe to run unchecked wherever the profile is used: with it, a tool that sends, changes or deletes things also runs for a caller that nobody watches, and content the model reads (a document, a web page, an email) can lead it to call one.
+
+#### Callers that cannot be asked
+
+An approval needs a person who can click **Allow** or **Deny**. These callers have none, so where a profile asks, the answer is no: a tool that requires an approval does not run, and the model is told why.
+
+| Caller | What it is | Ask for approval (default) | Allow all tools without asking |
+|---|---|---|---|
+| MCP client calling an agent | Another app, such as VS Code or Claude Desktop, calls one of your agents through the [MCP server](../mcp/server.md) | The agent's tools that require an approval do not run | Still do not run: there is no calling profile, and inside an agent the stricter side wins |
+| MCP client calling a tool | The MCP server exposes a tool itself, not through a profile | The profile setting does not apply. `ExposeAllTools` leaves the tool out; a tool named in the `Tools` list runs, because naming it is the host's decision | Same |
+| A2A client | Another AI agent calls one of your agents through the [A2A host](../a2a/host.md) | The sample hosts' A2A host runs the agent with its tools turned off, so no tool runs. A host that turns them on follows this table | Same in the sample hosts: no tool runs |
+| A2A connection | Your profile calls a remote agent, picked on the Capabilities tab | The remote agent runs on its own system, under that system's rules | Same |
+| Voice | A realtime voice conversation | The tool does not run | It runs |
+
+The text-only chat stream, the Claude and Copilot orchestrators, workflows, channels such as SMS and background work cannot ask either, and follow the same rule.
+
+Asking through these callers is not built. MCP elicitation and the A2A `input-required` task state could carry an approval later, and a voice session could ask out loud.
+
+### Renaming a Tool
+
+Tool names are stored: on AI profiles and templates, on chat interactions, in the `Tools` lists of the MCP server and WebMCP settings, and in whatever a host derives from them (such as a permission for each tool). Give a renamed tool its earlier name as an alias, and the stored names keep working:
+
+```csharp
+builder.Services
+    .AddCoreAITool<ListUsersTool>("listUsers")
+        .WithAlias("searchForUsers", grantsAccess: true)
+        .Selectable();
+```
+
+- A profile, template or chat interaction that still stores `searchForUsers` gets the `listUsers` tool. The model sees the tool under its current name.
+- A `Tools` list of the MCP server or WebMCP settings that still names `searchForUsers` still exposes the tool.
+- A dependency declared with the earlier name (`.WithDependency("searchForUsers")`) still resolves.
+- With `grantsAccess: true`, the access check accepts the earlier name: when `IAIToolAccessEvaluator` authorizes the tool's name or that alias, the user may use the tool. A host that grants access by tool name therefore does not have to grant it again after a rename.
+- Listings show the tool once, under its current name. `AIToolDefinitionOptions.Tools` and `GetSelectableTools()` do not list aliases.
+
+Pass `grantsAccess: true` only for a rename, where the tool does what the earlier name did. When a narrower tool is merged into a broader one (a read-only `getOrder` into a `manageOrder` that can also cancel orders), add the earlier name with `.WithAlias("getOrder")` alone: stored names still resolve, but a role granted only `getOrder` does not get `manageOrder`. `.WithAliases(...)` adds aliases without access. `AIToolDefinitionEntry.AccessAliases` lists the aliases that carry access.
+
+To look a tool up by a name that may be an alias, use `AIToolDefinitionOptions.TryGetTool(nameOrAlias, out definition)`. `ResolveToolName` and `ResolveToolNames` return the current names for stored names. `IAIToolsService.GetByNameAsync` also accepts an alias. A tool is registered as a keyed `AITool` under its current name only, so code that resolves `GetKeyedService<AITool>(name)` itself resolves the name with `ResolveToolName` first.
+
+An alias must not be the name or an alias of another tool. When it is, the tool definitions fail to build with an `InvalidOperationException` that names both tools. This happens the first time the application reads `AIToolDefinitionOptions`, which is at startup or on the first request that uses AI tools. Call `.WithAlias(...)` once for each earlier name. When no stored data uses an earlier name anymore, remove the alias.
 
 ### Tool Purposes
 

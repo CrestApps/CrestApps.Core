@@ -1,6 +1,7 @@
 using System.Runtime.CompilerServices;
 
 [assembly: InternalsVisibleTo("CrestApps.Core.AI.Chat")]
+[assembly: InternalsVisibleTo("CrestApps.Core.AI.Copilot")]
 [assembly: InternalsVisibleTo("CrestApps.Core.AI.Mcp")]
 [assembly: InternalsVisibleTo("CrestApps.OrchardCore.AI")]
 [assembly: InternalsVisibleTo("CrestApps.OrchardCore.AI.Chat")]

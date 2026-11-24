@@ -9,9 +9,9 @@ namespace CrestApps.Core.AI;
 public interface IAIToolsService
 {
     /// <summary>
-    /// Retrieves an AI tool by its name.
+    /// Retrieves an AI tool by its name, or by one of its aliases (a name it was registered under before).
     /// </summary>
-    /// <param name="name">The name of the AI tool.</param>
+    /// <param name="name">The name of the AI tool, or one of its aliases.</param>
     /// <returns>A task that represents the asynchronous operation, containing the retrieved <see cref="AITool"/>.</returns>
     ValueTask<AITool> GetByNameAsync(string name);
 }

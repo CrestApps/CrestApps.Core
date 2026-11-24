@@ -107,6 +107,9 @@ public sealed class AIProfileViewModel
     public string[] SelectedToolNames { get; set; } = [];
     public List<ToolSelectionItem> AvailableTools { get; set; } = [];
 
+    // Whether the tools that need an approval run without asking the person in the chat.
+    public bool RunToolsWithoutAsking { get; set; }
+
     // AI Agents
     public string[] SelectedAgentNames { get; set; } = [];
     public List<AgentSelectionItem> AvailableAgents { get; set; } = [];
@@ -399,6 +402,8 @@ public sealed class AIProfileViewModel
             vm.SelectedToolNames = toolMetadata.Names ?? [];
         }
 
+        vm.RunToolsWithoutAsking = profile.TryGetSettings<AIToolApprovalSettings>(out var toolApprovalSettings) && toolApprovalSettings.RunsAllWithoutAsking();
+
         if (profile.TryGet<AgentInvocationMetadata>(out var agentMetadata))
         {
             vm.SelectedAgentNames = agentMetadata.Names ?? [];
@@ -630,6 +635,15 @@ public sealed class AIProfileViewModel
         });
     }
 
+    // Whether any tool is picked: a tool, a tool instance, an MCP connection or an A2A connection.
+    private bool HasSelectedTools()
+    {
+        return SelectedToolNames?.Any(name => !string.IsNullOrWhiteSpace(name)) == true ||
+            SelectedToolInstanceNames?.Any(name => !string.IsNullOrWhiteSpace(name)) == true ||
+            SelectedMcpConnectionIds?.Any(id => !string.IsNullOrWhiteSpace(id)) == true ||
+            SelectedA2AConnectionIds?.Any(id => !string.IsNullOrWhiteSpace(id)) == true;
+    }
+
     public void ApplyTo(AIProfile profile)
     {
         profile.Name = Name;
@@ -643,6 +657,15 @@ public sealed class AIProfileViewModel
         profile.PromptSubject = PromptSubject;
         profile.Description = Description;
         profile.TitleType = TitleType;
+
+        if (Type == AIProfileType.Agent)
+        {
+            // An agent uses the tools picked for it: picking one is how the person says the agent may call it.
+            // Only that flag is set; the agent's availability and system flag stay as they were.
+            var hasTools = HasSelectedTools();
+
+            profile.Alter<AgentMetadata>(m => m.AllowToolInvocation = hasTools);
+        }
 
         // Welcome message is only used when initial prompt is not enabled.
         profile.WelcomeMessage = AddInitialPrompt ? null : WelcomeMessage;
@@ -700,6 +723,11 @@ public sealed class AIProfileViewModel
         profile.Alter<FunctionInvocationMetadata>(x =>
         {
             x.Names = toolNames?.Length > 0 ? toolNames : null;
+        });
+
+        profile.AlterSettings<AIToolApprovalSettings>(x =>
+        {
+            x.SetRunAllWithoutAsking(RunToolsWithoutAsking);
         });
 
         profile.Alter<AIProfileA2AMetadata>(a =>

@@ -700,7 +700,7 @@ public class AIChatHubCore<TClient> : Hub<TClient>
             }
         }
 
-        return Truncate(titleUserPrompt, 255);
+        return ChatText.Truncate(titleUserPrompt, 255);
     }
 
     /// <summary>
@@ -731,11 +731,6 @@ public class AIChatHubCore<TClient> : Hub<TClient>
         {
             Logger.LogWarning(ex, "Failed to generate a title for realtime chat session {SessionId}.", chatSession.SessionId);
         }
-    }
-
-    private static string Truncate(string value, int maxLength)
-    {
-        return string.IsNullOrEmpty(value) || value.Length <= maxLength ? value : value[..maxLength];
     }
 
     private static bool IsSpeechAuthenticationFailure(Exception ex)
@@ -791,7 +786,7 @@ public class AIChatHubCore<TClient> : Hub<TClient>
 
         var titleResponse = await completionService.CompleteAsync(chatDeployment, [new(ChatRole.User, userPrompt),], context);
 
-        return titleResponse.Messages.Count > 0 ? Truncate(titleResponse.Messages.First().Text, 255) : null;
+        return titleResponse.Messages.Count > 0 ? ChatText.Truncate(titleResponse.Messages.First().Text, 255) : null;
     }
 
     /// <summary>
@@ -999,6 +994,14 @@ public class AIChatHubCore<TClient> : Hub<TClient>
         return "There is nothing waiting for an answer in this chat.";
     }
 
+    /// <summary>
+    /// Gets the message for a resumed run that starts while another resume of the same chat is still running.
+    /// </summary>
+    protected virtual string GetResumeInProgressMessage()
+    {
+        return "Your answers to this chat are already being processed.";
+    }
+
     private static AGUIChatTurn CreateAGUITurn(RunAgentInput input, ChannelWriter<JsonElement> output)
     {
         var request = AGUIRunRequest.From(input);
@@ -1026,6 +1029,7 @@ public class AIChatHubCore<TClient> : Hub<TClient>
             // The caller's errors end the run instead of reaching the client separately. A run over HTTP has no
             // clients at all.
             Clients = new AGUIHubCallerClients<TClient>(output is null ? null : Clients, turn);
+            turn.Events.ToolDisplayTextResolver ??= CreateToolDisplayTextResolver(services);
 
             try
             {
@@ -1057,6 +1061,45 @@ public class AIChatHubCore<TClient> : Hub<TClient>
                 await SendSessionToGroupAsync(services, turn.Events.ThreadId);
             }
         }
+    }
+
+    /// <summary>
+    /// Creates what finds the title of a tool call for a run's events: a call to an agent shows the agent's title
+    /// (its profile's <see cref="AIProfile.DisplayText"/>), as the agent's approval requests do. The agents are read
+    /// once, at the run's first tool call. A title that cannot be read leaves the tool's name.
+    /// </summary>
+    /// <param name="services">The services of the run.</param>
+    /// <returns>The resolver.</returns>
+    private Func<string, CancellationToken, ValueTask<string>> CreateToolDisplayTextResolver(IServiceProvider services)
+    {
+        Dictionary<string, string> agentTitles = null;
+
+        return async (toolName, cancellationToken) =>
+        {
+            if (agentTitles is null)
+            {
+                agentTitles = new Dictionary<string, string>(StringComparer.Ordinal);
+
+                try
+                {
+                    var agents = await services.GetRequiredService<IAIProfileManager>().GetAsync(AIProfileType.Agent, cancellationToken);
+
+                    foreach (var agent in agents ?? [])
+                    {
+                        if (!string.IsNullOrEmpty(agent?.Name) && !string.IsNullOrWhiteSpace(agent.DisplayText))
+                        {
+                            agentTitles.TryAdd(agent.Name, agent.DisplayText);
+                        }
+                    }
+                }
+                catch (Exception ex) when (ex is not OperationCanceledException)
+                {
+                    Logger.LogWarning(ex, "The titles of the agents could not be read; their calls show the agents' names.");
+                }
+            }
+
+            return agentTitles.GetValueOrDefault(toolName);
+        };
     }
 
     /// <summary>
@@ -2886,6 +2929,9 @@ public class AIChatHubCore<TClient> : Hub<TClient>
                 {
                     ToolCalls = turn.Events.ToolCalls.ToList(),
                     ContinuesOnNextPage = continuesOnNextPage,
+
+                    // The runs of agents that paused for an approval, so the resumed run continues them.
+                    AgentRuns = turn.Events.AgentRuns.ToList(),
                 });
             }
 
@@ -3150,6 +3196,19 @@ public class AIChatHubCore<TClient> : Hub<TClient>
 
         using var invocationScope = AIInvocationScope.Begin();
         var request = turn.Request;
+
+        // One resume of a chat at a time: two that overlap (two tabs, a client that retries after a dropped
+        // connection) would both find the calls waiting and both run the approved ones. The session is claimed
+        // before its messages are read, so a resume that waited never reads them before the other one saved.
+        using var claim = ChatTurnResume.TryClaim(request.ThreadId);
+
+        if (claim is null)
+        {
+            await Clients.Caller.ReceiveError(GetResumeInProgressMessage());
+
+            return;
+        }
+
         var loaded = await LoadAGUIRunSessionAsync(turn, services, cancellationToken);
 
         if (loaded is null)
@@ -3180,56 +3239,13 @@ public class AIChatHubCore<TClient> : Hub<TClient>
         await StartAGUIRunInSessionAsync(turn, chatSession, cancellationToken);
 
         var conversationHistory = ChatConversationHistoryBuilder.Build(prompts, pausedPrompt);
-        var clientCalls = new List<AIContent>();
-        var clientResults = new List<AIContent>();
-        var approvalRequests = new List<AIContent>();
-        var approvalResponses = new List<AIContent>();
 
-        foreach (var call in pausedActivity.ToolCalls)
-        {
-            var functionCall = new FunctionCallContent(call.CallId, call.Name, ChatConversationHistoryBuilder.ParseArguments(call.Arguments));
+        // Kept so the paused message can be put back when the resume fails before anything approved ran.
+        var waitingActivity = ChatTurnResume.Copy(pausedActivity);
 
-            if (call.Status == ChatTurnToolCallStatus.AwaitingClient)
-            {
-                var result = request.ClientToolResults.TryGetValue(call.CallId, out var clientResult)
-                    ? clientResult
-                    : "The client did not return a result for this tool call.";
-
-                call.Result = Truncate(result, AGUIRunEventWriter.MaxToolResultLength);
-                call.Status = ChatTurnToolCallStatus.Completed;
-                clientCalls.Add(functionCall);
-                clientResults.Add(new FunctionResultContent(call.CallId, call.Result));
-            }
-            else if (call.Status == ChatTurnToolCallStatus.AwaitingApproval)
-            {
-                // A call the client did not answer is rejected: the protocol asks the client to answer every interrupt.
-                request.TryGetApproval(call.ApprovalRequestId, out var approved);
-
-                var approvalRequest = new ToolApprovalRequestContent(call.ApprovalRequestId ?? call.CallId, functionCall);
-
-                call.Status = approved ? ChatTurnToolCallStatus.Approved : ChatTurnToolCallStatus.Rejected;
-
-                if (!approved)
-                {
-                    turn.Events.RejectedCallIds.Add(call.CallId);
-                }
-
-                approvalRequests.Add(approvalRequest);
-                approvalResponses.Add(approvalRequest.CreateResponse(approved, reason: null));
-            }
-        }
-
-        if (clientCalls.Count > 0)
-        {
-            conversationHistory.Add(new ChatMessage(ChatRole.Assistant, clientCalls));
-            conversationHistory.Add(new ChatMessage(ChatRole.Tool, clientResults));
-        }
-
-        if (approvalRequests.Count > 0)
-        {
-            conversationHistory.Add(new ChatMessage(ChatRole.Assistant, approvalRequests));
-            conversationHistory.Add(new ChatMessage(ChatRole.User, approvalResponses));
-        }
+        // The answers go to the assistant's own calls and, for an agent that paused, back to the agent: its call is
+        // made again and it continues from its paused run.
+        ChatTurnResume.Apply(pausedActivity, request, conversationHistory, turn.Events.RejectedCallIds, invocationScope.Context);
 
         pausedPrompt.Put(pausedActivity);
         await promptStore.UpdateAsync(pausedPrompt, CancellationToken.None);
@@ -3244,7 +3260,36 @@ public class AIChatHubCore<TClient> : Hub<TClient>
 
         chatSession.LastActivityUtc = GetUtcNow();
 
-        await RunAssistantTurnAsync(turn, services, profile, chatSession, lastUserPrompt, conversationHistory, GetUtcNow(), cancellationToken);
+        try
+        {
+            await RunAssistantTurnAsync(turn, services, profile, chatSession, lastUserPrompt, conversationHistory, GetUtcNow(), cancellationToken);
+        }
+        catch (Exception) when (!ChatTurnResume.HaveApprovedCallsStarted(pausedActivity, turn.Events.ToolCalls, invocationScope.Context))
+        {
+            // The resume failed (the model was unavailable, the run was stopped) before anything the person approved
+            // ran, so the message waits for the answers again, with any paused agent run, and the person can retry.
+            // Once an approved call has started, the answers stand: answering again could run it twice.
+            pausedPrompt.Put(waitingActivity);
+            await promptStore.UpdateAsync(pausedPrompt, CancellationToken.None);
+
+            try
+            {
+                await turn.Events.WriteCustomAsync("crestapps.tool_calls_resolved", new Dictionary<string, object>
+                {
+                    ["messageId"] = pausedPrompt.ItemId,
+                    ["toolCalls"] = waitingActivity.ToolCalls,
+                }, CancellationToken.None);
+            }
+            catch (Exception writeException) when (writeException is not OperationCanceledException)
+            {
+                if (Logger.IsEnabled(LogLevel.Debug))
+                {
+                    Logger.LogDebug(writeException, "The calls that wait again could not be sent to the client of the AG-UI run {RunId}.", turn.Events.RunId);
+                }
+            }
+
+            throw;
+        }
     }
 
     /// <summary>
@@ -3423,7 +3468,7 @@ public class AIChatHubCore<TClient> : Hub<TClient>
         chatSession.Title = await GenerateSessionTitleAsync(services, profile, userPrompt);
         if (string.IsNullOrEmpty(chatSession.Title))
         {
-            chatSession.Title = Truncate(userPrompt, 255);
+            chatSession.Title = ChatText.Truncate(userPrompt, 255);
         }
 
         return (chatSession, true);

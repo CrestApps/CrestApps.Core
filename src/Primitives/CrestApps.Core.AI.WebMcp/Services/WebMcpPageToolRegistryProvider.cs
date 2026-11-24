@@ -86,6 +86,10 @@ internal sealed class WebMcpPageToolRegistryProvider : IToolRegistryProvider
                 Source = ToolRegistryEntrySource.Local,
                 SourceId = "webmcp",
                 RequiresApproval = tool.Consequential && !settings.AllowConsequentialPageTools,
+
+                // The page marks the tool consequential, and only the profile's own switch above lets it run unasked:
+                // no approval policy lowers it.
+                ApprovalFloor = tool.Consequential && !settings.AllowConsequentialPageTools ? ToolApprovalMode.EveryCall : null,
                 CreateAsync = _ => ValueTask.FromResult<AITool>(new WebMcpPageToolFunction(tool, connectionId, _client)),
             })
             .ToList();

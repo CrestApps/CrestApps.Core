@@ -924,7 +924,7 @@ else
                 Title = kvp.Value.Title ?? kvp.Key,
                 Description = kvp.Value.Description,
                 Category = kvp.Value.Category ?? "Miscellaneous",
-                IsSelected = model.SelectedToolNames.Contains(kvp.Key, StringComparer.OrdinalIgnoreCase),
+                IsSelected = model.SelectedToolNames.Contains(kvp.Key, StringComparer.OrdinalIgnoreCase) || kvp.Value.Aliases.Any(alias => model.SelectedToolNames.Contains(alias, StringComparer.OrdinalIgnoreCase)),
             })
             .OrderBy(t => t.Category, StringComparer.OrdinalIgnoreCase)
             .ThenBy(t => t.Title, StringComparer.OrdinalIgnoreCase)

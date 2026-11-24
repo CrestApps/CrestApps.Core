@@ -264,6 +264,50 @@ public sealed class PostSessionProcessingServiceTests
     }
 
     [Fact]
+    public async Task ProcessAsync_WithAToolThatRequiresApproval_OffersAToolThatDoesNotRunIt()
+    {
+        // Nobody can approve a call after the session ended, so the tool must never run there.
+        var profile = CreateProfile();
+        profile.AlterSettings<AIProfilePostSessionSettings>(s =>
+        {
+            s.EnablePostSessionProcessing = true;
+            s.PostSessionTasks = [new PostSessionTask
+            {
+                Name = "summary",
+                Type = PostSessionTaskType.Semantic,
+                Instructions = "Summarize the conversation.",
+                ToolNames = ["sendEmail"],
+            }, ];
+        });
+        var session = CreateSession();
+        var prompts = CreatePrompts();
+        var entry = CreateToolEntry("sendEmail", new TestAIFunction("sendEmail"));
+        entry.RequiresApproval = true;
+        var mockToolRegistry = new Mock<IToolRegistry>();
+        mockToolRegistry.Setup(t => t.GetAllAsync(It.IsAny<AICompletionContext>(), It.IsAny<CancellationToken>())).ReturnsAsync(new List<ToolRegistryEntry> { entry });
+        ChatOptions capturedOptions = null;
+        var mockChatClient = new Mock<IChatClient>();
+        mockChatClient.Setup(c => c
+            .GetResponseAsync(It.IsAny<IEnumerable<ChatMessage>>(), It.IsAny<ChatOptions>(), It.IsAny<CancellationToken>()))
+            .Callback<IEnumerable<ChatMessage>, ChatOptions, CancellationToken>((_, options, _) => capturedOptions = options)
+            .ReturnsAsync(new ChatResponse(new ChatMessage(ChatRole.Assistant, "{\"tasks\":[{\"name\":\"summary\",\"value\":\"No email was sent.\"}]}")));
+        var mockTemplateService = new Mock<ITemplateService>();
+        mockTemplateService.Setup(t => t
+            .RenderAsync(It.IsAny<string>(), It.IsAny<IDictionary<string, object>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync("Rendered prompt");
+        var service = CreateService(chatClient: mockChatClient.Object, toolRegistry: mockToolRegistry.Object, templateService: mockTemplateService.Object);
+
+        await service.ProcessAsync(profile, session, prompts, TestContext.Current.CancellationToken);
+
+        Assert.NotNull(capturedOptions);
+        var tool = Assert.IsType<ApprovalUnavailableAIFunction>(Assert.Single(capturedOptions.Tools));
+        var result = await tool.InvokeAsync(new AIFunctionArguments(), TestContext.Current.CancellationToken);
+
+        Assert.Equal("sendEmail", tool.Name);
+        Assert.Equal(ApprovalUnavailableAIFunction.GetMessage("sendEmail"), result?.ToString());
+    }
+
+    [Fact]
     public async Task ProcessAsync_WithOnlyToolInstanceNames_ShouldResolveToolsAndUseToolsPath()
     {
         // Arrange: profile-level tool instance names alone should enable the shared tools path.
