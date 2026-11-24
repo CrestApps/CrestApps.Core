@@ -1029,6 +1029,7 @@ public class AIChatHubCore<TClient> : Hub<TClient>
             // The caller's errors end the run instead of reaching the client separately. A run over HTTP has no
             // clients at all.
             Clients = new AGUIHubCallerClients<TClient>(output is null ? null : Clients, turn);
+            turn.Events.ToolDisplayTextResolver ??= CreateToolDisplayTextResolver(services);
 
             try
             {
@@ -1060,6 +1061,45 @@ public class AIChatHubCore<TClient> : Hub<TClient>
                 await SendSessionToGroupAsync(services, turn.Events.ThreadId);
             }
         }
+    }
+
+    /// <summary>
+    /// Creates what finds the title of a tool call for a run's events: a call to an agent shows the agent's title
+    /// (its profile's <see cref="AIProfile.DisplayText"/>), as the agent's approval requests do. The agents are read
+    /// once, at the run's first tool call. A title that cannot be read leaves the tool's name.
+    /// </summary>
+    /// <param name="services">The services of the run.</param>
+    /// <returns>The resolver.</returns>
+    private Func<string, CancellationToken, ValueTask<string>> CreateToolDisplayTextResolver(IServiceProvider services)
+    {
+        Dictionary<string, string> agentTitles = null;
+
+        return async (toolName, cancellationToken) =>
+        {
+            if (agentTitles is null)
+            {
+                agentTitles = new Dictionary<string, string>(StringComparer.Ordinal);
+
+                try
+                {
+                    var agents = await services.GetRequiredService<IAIProfileManager>().GetAsync(AIProfileType.Agent, cancellationToken);
+
+                    foreach (var agent in agents ?? [])
+                    {
+                        if (!string.IsNullOrEmpty(agent?.Name) && !string.IsNullOrWhiteSpace(agent.DisplayText))
+                        {
+                            agentTitles.TryAdd(agent.Name, agent.DisplayText);
+                        }
+                    }
+                }
+                catch (Exception ex) when (ex is not OperationCanceledException)
+                {
+                    Logger.LogWarning(ex, "The titles of the agents could not be read; their calls show the agents' names.");
+                }
+            }
+
+            return agentTitles.GetValueOrDefault(toolName);
+        };
     }
 
     /// <summary>

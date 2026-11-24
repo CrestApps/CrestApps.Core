@@ -350,6 +350,7 @@
 			return toolCalls.filter((call) => call && (call.callId || call.id)).map((call) => ({
 				id: call.callId || call.id,
 				name: call.name || "",
+				displayText: call.displayText || "",
 				arguments: call.arguments || "",
 				result: call.result || "",
 				status: normalizeToolCallStatus(call.status),
@@ -383,7 +384,7 @@
 			}
 		}
 		function describeToolCall(call) {
-			let label = Object.assign({}, aguiDefaultToolLabels, defaultConfig.aguiToolLabels || {})[call.name];
+			let label = Object.assign({}, aguiDefaultToolLabels, defaultConfig.aguiToolLabels || {})[call.name] || call.displayText;
 			if (!label) label = humanizeName(call.name || "tool");
 			const args = parseToolArguments(call.arguments);
 			if (args && call.name === "page_set_form_field" && args.field) label += ": " + args.field;
@@ -1740,6 +1741,7 @@
 								const call = {
 									id: evt.toolCallId,
 									name: evt.toolCallName,
+									displayText: "",
 									arguments: "",
 									result: "",
 									status: "requested",
@@ -1789,7 +1791,10 @@
 												call.agentName = metadata.agentName;
 												call.agentDisplayText = metadata.agentDisplayText || "";
 												call.agentCallId = metadata.agentToolCallId || "";
-												if (agentCall) agentCall.status = "awaitingApproval";
+												if (agentCall) {
+													agentCall.status = "awaitingApproval";
+													agentCall.displayText = agentCall.displayText || call.agentDisplayText;
+												}
 											}
 										}
 									}
@@ -1819,6 +1824,14 @@
 								for (const [key, reference] of Object.entries(value.references || {})) run.references[key] = normalizeReference(reference) ?? {};
 								this.refreshAGUIMessage(run);
 								break;
+							case "crestapps.tool_call_display": {
+								const call = run.toolCalls[value.toolCallId];
+								if (call) {
+									call.displayText = value.displayText || "";
+									this.refreshAGUIMessage(run);
+								}
+								break;
+							}
 							case "crestapps.message_replaced":
 								this.ensureAGUIMessage(run, value.messageId);
 								run.content = value.content || "";

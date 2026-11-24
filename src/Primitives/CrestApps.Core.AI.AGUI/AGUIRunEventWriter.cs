@@ -24,6 +24,12 @@ public sealed class AGUIRunEventWriter
     /// </summary>
     public const int MaxToolResultLength = 4000;
 
+    /// <summary>
+    /// The name of the <c>CUSTOM</c> event that gives the title of a tool call (<c>toolCallId</c> and
+    /// <c>displayText</c>), right after the call's <c>TOOL_CALL_END</c>, for a call whose tool has a title.
+    /// </summary>
+    public const string ToolCallDisplayEventName = "crestapps.tool_call_display";
+
     private static readonly JsonElement _approvalResponseSchema = JsonElement.Parse("""
         {
           "type": "object",
@@ -79,6 +85,13 @@ public sealed class AGUIRunEventWriter
     /// Gets or sets the thread (chat session) id. Set it before the run starts when the session is created by the run.
     /// </summary>
     public string ThreadId { get; set; }
+
+    /// <summary>
+    /// Gets or sets what finds, from a tool's name, the title the person sees for a call of the tool, such as an
+    /// agent's title. It returns <see langword="null"/> for a tool without one. Set it before the run writes its
+    /// first tool call.
+    /// </summary>
+    public Func<string, CancellationToken, ValueTask<string>> ToolDisplayTextResolver { get; set; }
 
     /// <summary>
     /// Gets the run id.
@@ -538,6 +551,12 @@ public sealed class AGUIRunEventWriter
             agentRecord.Status = ChatTurnToolCallStatus.AwaitingApproval;
             agentRecord.Result = null;
 
+            // The call to the agent shows the agent's title, as the approval request does.
+            if (agentRecord.DisplayText is null && !string.IsNullOrWhiteSpace(agentRun?.AgentDisplayText))
+            {
+                agentRecord.DisplayText = agentRun.AgentDisplayText;
+            }
+
             if (agentRun is not null && !_agentRuns.Contains(agentRun))
             {
                 _agentRuns.Add(agentRun);
@@ -611,10 +630,14 @@ public sealed class AGUIRunEventWriter
         }
 
         var arguments = JsonSerializer.Serialize(call.Arguments ?? new Dictionary<string, object>(), _compactJsonOptions);
+        var displayText = ToolDisplayTextResolver is null || string.IsNullOrEmpty(call.Name)
+            ? null
+            : await ToolDisplayTextResolver(call.Name, cancellationToken);
         var record = new ChatTurnToolCall
         {
             CallId = call.CallId,
             Name = call.Name,
+            DisplayText = string.IsNullOrWhiteSpace(displayText) ? null : displayText,
             Arguments = arguments,
             Status = status,
             ApprovalRequestId = approvalRequestId,
@@ -635,6 +658,21 @@ public sealed class AGUIRunEventWriter
             Delta = arguments,
         }, cancellationToken);
         await EmitAsync(new ToolCallEndEvent { ToolCallId = call.CallId }, cancellationToken);
+
+        // The protocol's TOOL_CALL_START has the tool's name only; the title follows in an event of its own, once the
+        // call's events are closed, so a client that checks the order of the events accepts it.
+        if (record.DisplayText is not null)
+        {
+            await EmitAsync(new CustomEvent
+            {
+                Name = ToolCallDisplayEventName,
+                Value = JsonSerializer.SerializeToElement(new Dictionary<string, string>
+                {
+                    ["toolCallId"] = record.CallId,
+                    ["displayText"] = record.DisplayText,
+                }, AIJsonUtilities.DefaultOptions),
+            }, cancellationToken);
+        }
 
         return record;
     }

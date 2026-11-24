@@ -254,6 +254,35 @@ public sealed class AgentToolApprovalTests
         Assert.Contains("rejected", resumed.Text, StringComparison.OrdinalIgnoreCase);
     }
 
+    [Theory]
+    [InlineData(true, true, 1, 1)]
+    [InlineData(true, false, 1, 0)]
+    [InlineData(false, true, 0, 1)]
+    public async Task ACallThatNeedsNoApproval_InTheSameRoundAsOneThatDoes_WaitsForItsOwnAnswer(bool approveList, bool approveDelete, int expectedLists, int expectedDeletes)
+    {
+        using var harness = new AgentApprovalTestHarness();
+        harness.Model.ListsAndDeletesInOneRound = true;
+
+        var paused = await RunFirstTurnAsync(harness);
+
+        // Microsoft.Extensions.AI's function-invoking chat client asks for an approval of every call of a round once
+        // one of them requires an approval. So list_items, which needs none, waits too: each call gets a card of its
+        // own, and nothing runs before the person answers.
+        var outcome = Assert.IsType<RunFinishedInterruptOutcome>(Assert.IsType<RunFinishedEvent>(paused.Events[^1]).Outcome);
+
+        Assert.Equal(
+            [AgentApprovalTestHarness.ListItemsTool.TheName, DeleteToolName],
+            outcome.Interrupts.Select(GetToolName));
+        Assert.Equal(0, harness.ListTool.CallCount);
+        Assert.Equal(0, harness.DeleteTool.CallCount);
+
+        await ResumeAsync(harness, paused, interrupt => GetToolName(interrupt) == DeleteToolName ? approveDelete : approveList);
+
+        // Each answer decides its own call, and an approved call runs once.
+        Assert.Equal(expectedLists, harness.ListTool.CallCount);
+        Assert.Equal(expectedDeletes, harness.DeleteTool.CallCount);
+    }
+
     [Fact]
     public async Task ASecondToolThatRequiresApproval_PausesTheResumedRunAgain_AndKeepsWhatTheAgentDid()
     {
@@ -422,6 +451,9 @@ public sealed class AgentToolApprovalTests
         Assert.Equal(AgentName, metadata.GetProperty("agentName").GetString());
         Assert.Equal("Content agent", metadata.GetProperty("agentDisplayText").GetString());
         Assert.Equal("Content agent", writer.ToolCalls.Single(call => call.AgentCallId == AgentCallId).AgentDisplayText);
+
+        // The call to the agent, which waits, shows the same title.
+        Assert.Equal("Content agent", writer.ToolCalls.Single(call => call.CallId == AgentCallId).DisplayText);
     }
 
     [Fact]
@@ -747,17 +779,26 @@ public sealed class AgentToolApprovalTests
     /// Resumes a paused turn the way the chat hub does: reads the stored message back, applies the answer, and runs
     /// the assistant's side of the turn again from the history up to the paused message.
     /// </summary>
-    private static async Task<ChatTurn> ResumeAsync(AgentApprovalTestHarness harness, ChatTurn paused, bool? approved, List<ChatMessage> history = null, bool supportsApproval = true)
+    private static Task<ChatTurn> ResumeAsync(AgentApprovalTestHarness harness, ChatTurn paused, bool? approved, List<ChatMessage> history = null, bool supportsApproval = true)
+    {
+        return ResumeAsync(harness, paused, approved is null ? null : _ => approved.Value, history, supportsApproval);
+    }
+
+    /// <summary>
+    /// Resumes a paused turn with an answer of its own for each interrupt, or with no answer when
+    /// <paramref name="answer"/> is <see langword="null"/>.
+    /// </summary>
+    private static async Task<ChatTurn> ResumeAsync(AgentApprovalTestHarness harness, ChatTurn paused, Func<AGUIInterrupt, bool> answer, List<ChatMessage> history = null, bool supportsApproval = true)
     {
         using var scope = AIInvocationScope.Begin();
 
         var answers = new Dictionary<string, bool>();
 
-        if (approved is not null)
+        if (answer is not null)
         {
             foreach (var interrupt in paused.Writer.Interrupts)
             {
-                answers[interrupt.Id] = approved.Value;
+                answers[interrupt.Id] = answer(interrupt);
             }
         }
 
@@ -846,6 +887,11 @@ public sealed class AgentToolApprovalTests
             .FirstOrDefault(result => result.CallId == callId)
             ?.Result
             ?.ToString();
+    }
+
+    private static string GetToolName(AGUIInterrupt interrupt)
+    {
+        return interrupt.Metadata.Value.GetProperty("toolName").GetString();
     }
 
     /// <summary>

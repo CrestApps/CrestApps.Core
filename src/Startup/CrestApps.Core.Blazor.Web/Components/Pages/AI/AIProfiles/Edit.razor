@@ -759,8 +759,8 @@ else if (_model != null)
                         <div class="mb-3">
                             <label class="form-label" for="runToolsWithoutAsking">Tool approval</label>
                             <InputSelect class="form-select" id="runToolsWithoutAsking" @bind-Value="_model.RunToolsWithoutAsking">
-                                <option value="False">Ask for approval (recommended)</option>
-                                <option value="True">Allow all tools without asking</option>
+                                <option value="false">Ask for approval (recommended)</option>
+                                <option value="true">Allow all tools without asking</option>
                             </InputSelect>
                             <div class="form-text">Ask for approval shows Allow and Deny before a tool runs. Allow all skips that, except for tools that always ask. An agent's tools skip it only when the agent and the profile calling it both allow all.</div>
                         </div>

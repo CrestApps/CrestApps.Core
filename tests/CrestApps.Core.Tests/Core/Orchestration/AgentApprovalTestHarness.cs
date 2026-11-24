@@ -261,6 +261,12 @@ internal sealed class AgentApprovalTestHarness : IDisposable
         /// </summary>
         public bool DeletesTwoItems { get; set; }
 
+        /// <summary>
+        /// Gets or sets a value indicating whether the agent lists the items and deletes item 7 in one round of tool
+        /// calls, instead of listing first.
+        /// </summary>
+        public bool ListsAndDeletesInOneRound { get; set; }
+
         public Task<ChatResponse> GetResponseAsync(IEnumerable<ChatMessage> messages, ChatOptions options = null, CancellationToken cancellationToken = default)
         {
             return Task.FromResult(new ChatResponse(Answer(messages.ToList(), options)));
@@ -320,6 +326,15 @@ internal sealed class AgentApprovalTestHarness : IDisposable
 
         private List<AIContent> AnswerAsAgent(List<ChatMessage> messages)
         {
+            if (ListsAndDeletesInOneRound && FindResult(messages, ListCallId) is null && FindResult(messages, DeleteCallId) is null)
+            {
+                return
+                [
+                    new FunctionCallContent(ListCallId, ListItemsTool.TheName, new Dictionary<string, object>()),
+                    new FunctionCallContent(DeleteCallId, DeleteItemTool.TheName, new Dictionary<string, object> { ["id"] = 7 }),
+                ];
+            }
+
             if (FindResult(messages, ListCallId) is null)
             {
                 return [new FunctionCallContent(ListCallId, ListItemsTool.TheName, new Dictionary<string, object>())];

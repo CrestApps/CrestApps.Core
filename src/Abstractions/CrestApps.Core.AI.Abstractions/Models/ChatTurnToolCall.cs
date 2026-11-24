@@ -17,6 +17,12 @@ public sealed class ChatTurnToolCall
     public string Name { get; set; }
 
     /// <summary>
+    /// Gets or sets the title the person sees for the call, such as the title of the agent the call runs. It is
+    /// <see langword="null"/> when the tool has none, and the chat then shows the tool's name.
+    /// </summary>
+    public string DisplayText { get; set; }
+
+    /// <summary>
     /// Gets or sets the arguments, as a JSON object.
     /// </summary>
     public string Arguments { get; set; }

@@ -526,6 +526,8 @@ window.coreAIChatManager = function () {
             .map(call => ({
                 id: call.callId || call.id,
                 name: call.name || '',
+                // The title the person sees for the call, such as the agent's title for a call to an agent.
+                displayText: call.displayText || '',
                 arguments: call.arguments || '',
                 result: call.result || '',
                 status: normalizeToolCallStatus(call.status),
@@ -598,7 +600,7 @@ window.coreAIChatManager = function () {
 
     function describeToolCall(call) {
         const labels = Object.assign({}, aguiDefaultToolLabels, defaultConfig.aguiToolLabels || {});
-        let label = labels[call.name];
+        let label = labels[call.name] || call.displayText;
 
         if (!label) {
             label = humanizeName(call.name || 'tool');
@@ -2687,7 +2689,7 @@ window.coreAIChatManager = function () {
 
                         case 'TOOL_CALL_START': {
                             const message = this.ensureAGUIMessage(run, evt.parentMessageId);
-                            const call = { id: evt.toolCallId, name: evt.toolCallName, arguments: '', result: '', status: 'requested', interruptId: null, agentName: '', agentDisplayText: '' };
+                            const call = { id: evt.toolCallId, name: evt.toolCallName, displayText: '', arguments: '', result: '', status: 'requested', interruptId: null, agentName: '', agentDisplayText: '' };
 
                             message.toolCalls = message.toolCalls || [];
                             message.toolCalls.push(call);
@@ -2758,6 +2760,7 @@ window.coreAIChatManager = function () {
 
                                             if (agentCall) {
                                                 agentCall.status = 'awaitingApproval';
+                                                agentCall.displayText = agentCall.displayText || call.agentDisplayText;
                                             }
                                         }
                                     }
@@ -2806,6 +2809,18 @@ window.coreAIChatManager = function () {
 
                             this.refreshAGUIMessage(run);
                             break;
+
+                        case 'crestapps.tool_call_display': {
+                            // The title of a tool call, such as the agent's title for a call to an agent.
+                            const call = run.toolCalls[value.toolCallId];
+
+                            if (call) {
+                                call.displayText = value.displayText || '';
+                                this.refreshAGUIMessage(run);
+                            }
+
+                            break;
+                        }
 
                         case 'crestapps.message_replaced':
                             this.ensureAGUIMessage(run, value.messageId);

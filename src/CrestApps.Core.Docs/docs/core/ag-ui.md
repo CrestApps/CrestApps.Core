@@ -96,7 +96,7 @@ The chat UI uses `RunAgent` by default. Set `protocol: 'legacy'` in the chat con
 | `REASONING_START` … `REASONING_END` | The model's visible reasoning, when the model streams it. |
 | `TOOL_CALL_START` / `ARGS` / `END` / `RESULT` | Every tool call and its result: the profile's tools, MCP and agent tools, page tools, and the shared state tool. Results are cut to 4,000 characters. |
 | `STATE_SNAPSHOT` / `STATE_DELTA` | The shared state, and each change the agent makes, as JSON Patch. |
-| `CUSTOM` | `crestapps.assistant_message` (the assistant message's title and appearance), `crestapps.references` (its citations and files), `crestapps.message_replaced` (the output checks replaced what streamed), `crestapps.tool_calls_resolved` (the approvals of a paused message, after a resume). |
+| `CUSTOM` | `crestapps.assistant_message` (the assistant message's title and appearance), `crestapps.references` (its citations and files), `crestapps.message_replaced` (the output checks replaced what streamed), `crestapps.tool_calls_resolved` (the approvals of a paused message, after a resume), `crestapps.tool_call_display` (the title of a tool call, such as the agent's title for a call to an agent, right after its `TOOL_CALL_END`; it is kept as `ChatTurnToolCall.DisplayText`). |
 
 The tool calls are stored with the assistant message (`ChatTurnToolActivity`), so the session history shows them again and the next turns of the conversation replay the calls and their results to the model.
 
@@ -151,7 +151,9 @@ In a chat run that can ask for approvals (an AG-UI run), the tool is wrapped in 
 }
 ```
 
-The resumed run makes the approved calls, tells the model about the rejected ones (which never run), and lets the model carry on. An interrupt the client did not answer counts as rejected. When the model calls several tools at once and one needs an approval, every call of that batch waits for one.
+The resumed run makes the approved calls, tells the model about the rejected ones (which never run), and lets the model carry on. An interrupt the client did not answer counts as rejected.
+
+**A batch waits as a whole.** When the model calls several tools at once and one of them needs an approval, every call of that batch waits for an answer, even a call that needs none, and each call shows its own **Allow** and **Deny**. Nothing in the batch runs before it is answered. This is how `Microsoft.Extensions.AI`'s `FunctionInvokingChatClient` handles a batch (see its remarks on approvals), and the Azure OpenAI client's own tool loop does the same, so a resumed run answers every call the same way. Each answer decides only its own call: denying the call that needs an approval does not stop a call you allow. `Microsoft.Extensions.AI` suggests `ChatOptions.AllowMultipleToolCalls = false` to avoid this; the framework does not set it, because the model would then call one tool at a time in every turn.
 
 One resume of a chat runs at a time: a second one that starts while the first runs (another tab, a client that retries) gets an error and runs nothing. When a resume fails before anything the person approved ran (the model is unavailable, the run is stopped), the message waits for the answers again and the client is sent the calls that wait, so the person can answer again. Once an approved call has run, the answers stand, so an approved call never runs twice. The claim is per process: a host with several instances also needs sticky routing for a session.
 

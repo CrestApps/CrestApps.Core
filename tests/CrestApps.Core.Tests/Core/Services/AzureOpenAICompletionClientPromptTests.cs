@@ -938,6 +938,77 @@ public sealed class AzureOpenAICompletionClientPromptTests
         Assert.Equal("done", Assert.Single(response.Messages[1].Contents.OfType<Microsoft.Extensions.AI.FunctionResultContent>()).Result);
         Assert.Equal("done", response.Messages[^1].Text);
     }
+
+    /// <summary>
+    /// Verifies a round of tool calls in which one call requires an approval asks for an approval of every call of
+    /// the round, as the function-invoking chat client does, so no call runs before a person answers; and that on
+    /// resume each answer decides its own call.
+    /// </summary>
+    [Fact]
+    public async Task NonStreaming_ARoundWithACallThatRequiresApproval_AsksForEachCall_AndEachAnswerDecidesItsOwnCall()
+    {
+        var agent = new PausingAgentProbe();
+        var listCalls = 0;
+        var list = Microsoft.Extensions.AI.AIFunctionFactory.Create(
+            () =>
+            {
+                listCalls++;
+
+                return "Items: 7, 8";
+            },
+            "list_items");
+
+        using (var pausedContext = CreateCompletionClient(
+            streaming: false,
+            [new ToolsHandler(new Microsoft.Extensions.AI.ApprovalRequiredAIFunction(agent), list)],
+            new Mock<IAIClientFactory>(MockBehavior.Strict).Object,
+            completionResponse: CreateMixedToolCallsCompletionResponse()))
+        using (AIInvocationScope.Begin())
+        {
+            var paused = await pausedContext.Client.CompleteAsync(
+                [new AIChatMessage(AIChatRole.User, "List the items and delete item 7.")],
+                new AICompletionContext
+                {
+                    ChatDeploymentName = DeploymentName,
+                },
+                TestContext.Current.CancellationToken);
+
+            var requests = paused.Messages.SelectMany(message => message.Contents).OfType<Microsoft.Extensions.AI.ToolApprovalRequestContent>().ToList();
+
+            Assert.Equal(["content-agent", "list_items"], requests.Select(request => Assert.IsType<Microsoft.Extensions.AI.FunctionCallContent>(request.ToolCall).Name));
+            Assert.Empty(agent.CallIds);
+            Assert.Equal(0, listCalls);
+            Assert.Equal(1, pausedContext.Handler.RequestCount);
+        }
+
+        using var resumedContext = CreateCompletionClient(
+            streaming: false,
+            [new ToolsHandler(new Microsoft.Extensions.AI.ApprovalRequiredAIFunction(agent), list)],
+            new Mock<IAIClientFactory>(MockBehavior.Strict).Object);
+        using var scope = AIInvocationScope.Begin();
+        var agentRequest = new Microsoft.Extensions.AI.ToolApprovalRequestContent(
+            "ficc_call-agent-1",
+            new Microsoft.Extensions.AI.FunctionCallContent("call-agent-1", "content-agent", new Dictionary<string, object> { ["prompt"] = "Delete item 7" }));
+        var listRequest = new Microsoft.Extensions.AI.ToolApprovalRequestContent(
+            "ficc_call-list-1",
+            new Microsoft.Extensions.AI.FunctionCallContent("call-list-1", "list_items", new Dictionary<string, object>()));
+
+        await resumedContext.Client.CompleteAsync(
+            [
+                new AIChatMessage(AIChatRole.User, "List the items and delete item 7."),
+                new AIChatMessage(AIChatRole.Assistant, [agentRequest, listRequest]),
+                new AIChatMessage(AIChatRole.User, [agentRequest.CreateResponse(approved: false, reason: null), listRequest.CreateResponse(approved: true, reason: null)]),
+            ],
+            new AICompletionContext
+            {
+                ChatDeploymentName = DeploymentName,
+            },
+            TestContext.Current.CancellationToken);
+
+        // The person allowed list_items and denied the agent: only list_items ran, once.
+        Assert.Empty(agent.CallIds);
+        Assert.Equal(1, listCalls);
+    }
 #pragma warning restore MEAI001
 
     /// <summary>
@@ -1282,6 +1353,58 @@ public sealed class AzureOpenAICompletionClientPromptTests
                         "function": {
                           "name": "content-agent",
                           "arguments": "{\"prompt\":\"Delete item 7\"}"
+                        }
+                      }
+                    ]
+                  },
+                  "finish_reason": "tool_calls",
+                  "logprobs": null
+                }
+              ],
+              "usage": {
+                "prompt_tokens": 1,
+                "completion_tokens": 1,
+                "total_tokens": 2
+              }
+            }
+            """;
+    }
+
+    /// <summary>
+    /// Creates a non-streaming response in which the model calls the <c>content-agent</c> and <c>list_items</c> tools
+    /// in one round.
+    /// </summary>
+    /// <returns>The JSON response payload.</returns>
+    private static string CreateMixedToolCallsCompletionResponse()
+    {
+        return """
+            {
+              "id": "chatcmpl-test",
+              "object": "chat.completion",
+              "created": 1710000000,
+              "model": "test-model",
+              "choices": [
+                {
+                  "index": 0,
+                  "message": {
+                    "role": "assistant",
+                    "content": null,
+                    "refusal": null,
+                    "tool_calls": [
+                      {
+                        "id": "call-agent-1",
+                        "type": "function",
+                        "function": {
+                          "name": "content-agent",
+                          "arguments": "{\"prompt\":\"Delete item 7\"}"
+                        }
+                      },
+                      {
+                        "id": "call-list-1",
+                        "type": "function",
+                        "function": {
+                          "name": "list_items",
+                          "arguments": "{}"
                         }
                       }
                     ]
@@ -1658,6 +1781,36 @@ public sealed class AzureOpenAICompletionClientPromptTests
         public Task ConfigureAsync(CompletionServiceConfigureContext context, CancellationToken cancellationToken = default)
         {
             context.ChatOptions.Tools = [_tool];
+
+            return Task.CompletedTask;
+        }
+    }
+
+    /// <summary>
+    /// Offers several tools on each request.
+    /// </summary>
+    private sealed class ToolsHandler : IAICompletionServiceHandler
+    {
+        private readonly Microsoft.Extensions.AI.AITool[] _tools;
+
+        /// <summary>
+        /// Initializes a new instance of the <see cref="ToolsHandler"/> class.
+        /// </summary>
+        /// <param name="tools">The tools to offer.</param>
+        public ToolsHandler(params Microsoft.Extensions.AI.AITool[] tools)
+        {
+            _tools = tools;
+        }
+
+        /// <summary>
+        /// Adds the tools to the request options.
+        /// </summary>
+        /// <param name="context">The configure context.</param>
+        /// <param name="cancellationToken">The cancellation token.</param>
+        /// <returns>A completed task.</returns>
+        public Task ConfigureAsync(CompletionServiceConfigureContext context, CancellationToken cancellationToken = default)
+        {
+            context.ChatOptions.Tools = [.. _tools];
 
             return Task.CompletedTask;
         }
