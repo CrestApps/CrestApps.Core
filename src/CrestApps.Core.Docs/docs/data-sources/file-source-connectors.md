@@ -170,6 +170,29 @@ An SFTP connection needs the server's **host key fingerprint** (`HostKeyFingerpr
 refused when none is stored, and when the server presents a different key, so credentials never go to a server that was
 not verified. Both sample hosts have a field for it.
 
+### Which address a connection opens
+
+An FTP or SFTP connection asks `IRemoteFileEgressPolicy` for the address of its stored host, once, and connects to that
+address only; neither client looks the name up again, so a name that changes its answer after the check cannot move the
+connection somewhere else. The same holds for the MCP resource handlers.
+
+- **FTP** opens every passive data connection to that address too, whatever address the server names in its `PASV` or
+  `EPSV` answer; the server only chooses the port. TLS still checks the server's certificate against the host name.
+- **SFTP** is given the address, and the host key fingerprint identifies the server. A connection can go through a proxy:
+  set `ProxyType` (`Socks4`, `Socks5` or `Http`), `ProxyHost` and `ProxyPort`, and `ProxyUsername` and `ProxyPassword` when
+  the proxy needs them. The policy is asked for the proxy's address as well, and the proxy is asked for the server's
+  checked address, so the server's name is resolved by the host, not by the proxy. A proxy type without a proxy host and
+  port is refused, and an unknown proxy type is logged and the connection is made without a proxy.
+
+The default policy, `DefaultRemoteFileEgressPolicy`, resolves the name and allows any address; a name with several
+addresses is connected through the first one the resolver returns. When people who are not administrators can edit file
+sources or MCP resources, a host usually keeps these connections off its own network. It registers its own policy, which
+resolves the name, checks the address and port, and throws to refuse the connection:
+
+```csharp
+services.AddSingleton<IRemoteFileEgressPolicy, PublicAddressesOnlyEgressPolicy>();
+```
+
 ## What counts as changed
 
 Every listed item carries an opaque **change token**, compared verbatim and never parsed: an `ETag` for one

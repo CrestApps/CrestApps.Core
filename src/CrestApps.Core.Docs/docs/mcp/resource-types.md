@@ -55,6 +55,13 @@ The FTP and SFTP handlers read a file into memory to hand it to the model, so th
 when not set). A file larger than the limit is not returned; the read answers with an error that says so. Custom handlers
 get the same behavior by deriving from `RemoteFileResourceHandlerBase<TMetadata>`.
 
+### Which address a remote read connects to
+
+The FTP and SFTP handlers connect to the address `IRemoteFileEgressPolicy` returns for the stored host, not to the host
+name, and an FTP passive data connection stays on that address whatever the server's answer names. A host limits where
+these reads can go by registering its own policy; see
+[Which address a connection opens](../data-sources/file-source-connectors.md#which-address-a-connection-opens).
+
 ### Knowledge figures
 
 `CrestApps.Core.AI.Mcp.Knowledge` publishes one template,

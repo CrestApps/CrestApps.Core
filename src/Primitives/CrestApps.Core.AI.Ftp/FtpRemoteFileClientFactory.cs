@@ -16,6 +16,7 @@ public sealed class FtpRemoteFileClientFactory : IRemoteFileClientFactory
 {
     private readonly IDataProtectionProvider _dataProtectionProvider;
     private readonly IOptions<FtpOptions> _options;
+    private readonly IRemoteFileEgressPolicy _egressPolicy;
     private readonly ILogger<FtpRemoteFileClientFactory> _logger;
 
     /// <summary>
@@ -23,14 +24,17 @@ public sealed class FtpRemoteFileClientFactory : IRemoteFileClientFactory
     /// </summary>
     /// <param name="dataProtectionProvider">The data protection provider the password was encrypted with.</param>
     /// <param name="options">The host-level FTP options.</param>
+    /// <param name="egressPolicy">The policy that resolves and checks the server's address.</param>
     /// <param name="logger">The logger.</param>
     public FtpRemoteFileClientFactory(
         IDataProtectionProvider dataProtectionProvider,
         IOptions<FtpOptions> options,
+        IRemoteFileEgressPolicy egressPolicy,
         ILogger<FtpRemoteFileClientFactory> logger)
     {
         _dataProtectionProvider = dataProtectionProvider;
         _options = options;
+        _egressPolicy = egressPolicy;
         _logger = logger;
     }
 
@@ -53,7 +57,9 @@ public sealed class FtpRemoteFileClientFactory : IRemoteFileClientFactory
             throw new InvalidOperationException(violation);
         }
 
-        var client = new AsyncFtpClient(metadata.Host, metadata.Port ?? 21);
+        var port = metadata.Port ?? 21;
+        var address = await _egressPolicy.ResolveAsync(metadata.Host, port, cancellationToken);
+        var client = new PinnedAddressFtpClient(metadata.Host, port, address);
 
         if (!string.IsNullOrEmpty(metadata.Username))
         {

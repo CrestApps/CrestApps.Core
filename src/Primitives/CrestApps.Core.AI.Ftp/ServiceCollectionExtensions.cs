@@ -1,4 +1,5 @@
 ﻿using CrestApps.Core.AI.FileSources;
+using CrestApps.Core.AI.FileSources.FileTransfer;
 using CrestApps.Core.AI.Ftp.Handlers;
 using CrestApps.Core.AI.Mcp;
 using CrestApps.Core.AI.Mcp.Models;
@@ -29,6 +30,7 @@ public static class ServiceCollectionExtensions
         ArgumentNullException.ThrowIfNull(services);
 
         services.AddOptions<FtpOptions>();
+        services.TryAddSingleton<IRemoteFileEgressPolicy, DefaultRemoteFileEgressPolicy>();
         services.TryAddScoped<FtpRemoteFileClientFactory>();
 
         return services.AddCoreIngestionConnector<FtpIngestionConnector>(
@@ -50,6 +52,7 @@ public static class ServiceCollectionExtensions
         ArgumentNullException.ThrowIfNull(services);
 
         services.AddOptions<FtpOptions>();
+        services.TryAddSingleton<IRemoteFileEgressPolicy, DefaultRemoteFileEgressPolicy>();
 
         return services.AddCoreAIMcpResourceType<FtpResourceTypeHandler>(FtpResourceConstants.Type, entry =>
                 {

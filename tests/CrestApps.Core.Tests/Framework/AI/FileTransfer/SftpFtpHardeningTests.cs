@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
+using CrestApps.Core.AI.FileSources.FileTransfer;
 using CrestApps.Core.AI.Ftp;
 using CrestApps.Core.AI.Ftp.Handlers;
 using CrestApps.Core.AI.Ftp.Models;
@@ -75,7 +76,7 @@ public sealed class SftpFtpHardeningTests
     [Fact]
     public async Task SftpFactory_FailsClosedWhenNoHostKeyFingerprintIsConfigured()
     {
-        var factory = new SftpRemoteFileClientFactory(new EphemeralDataProtectionProvider(), NullLogger<SftpRemoteFileClientFactory>.Instance);
+        var factory = new SftpRemoteFileClientFactory(new EphemeralDataProtectionProvider(), new DefaultRemoteFileEgressPolicy(), NullLogger<SftpRemoteFileClientFactory>.Instance);
         var source = new FileSource { ItemId = "source-1" };
         source.Put(new SftpConnectionMetadata { Host = "127.0.0.1", Port = 1, Username = "user", Password = "x" });
 
@@ -87,7 +88,7 @@ public sealed class SftpFtpHardeningTests
     [Fact]
     public async Task SftpResourceHandler_FailsClosedWhenNoHostKeyFingerprintIsConfigured()
     {
-        var handler = new SftpResourceTypeHandler(new EphemeralDataProtectionProvider(), NullLogger<SftpResourceTypeHandler>.Instance);
+        var handler = new SftpResourceTypeHandler(new EphemeralDataProtectionProvider(), new DefaultRemoteFileEgressPolicy(), NullLogger<SftpResourceTypeHandler>.Instance);
         var resource = CreateResource(new SftpConnectionMetadata { Host = "127.0.0.1", Port = 1, Username = "user", Password = "x" });
 
         var result = await handler.ReadAsync(resource, new Dictionary<string, string>(), TestContext.Current.CancellationToken);
@@ -141,6 +142,7 @@ public sealed class SftpFtpHardeningTests
         var handler = new FtpResourceTypeHandler(
             new EphemeralDataProtectionProvider(),
             Options.Create(new FtpOptions { AllowAnyCertificate = false }),
+            new DefaultRemoteFileEgressPolicy(),
             NullLogger<FtpResourceTypeHandler>.Instance);
         var resource = CreateResource(new FtpConnectionMetadata { Host = "127.0.0.1", Port = 1, ValidateAnyCertificate = true });
 
@@ -196,6 +198,7 @@ public sealed class SftpFtpHardeningTests
         var factory = new FtpRemoteFileClientFactory(
             new EphemeralDataProtectionProvider(),
             Options.Create(new FtpOptions { AllowUnencrypted = true }),
+            new DefaultRemoteFileEgressPolicy(),
             NullLogger<FtpRemoteFileClientFactory>.Instance);
         var source = new FileSource { ItemId = "source-1" };
         source.Put(new FtpConnectionMetadata { Host = "127.0.0.1", Port = 1, Username = "user", Password = "x", EncryptionMode = "None", ConnectTimeout = 2 });
@@ -225,6 +228,7 @@ public sealed class SftpFtpHardeningTests
         var handler = new FtpResourceTypeHandler(
             new EphemeralDataProtectionProvider(),
             Options.Create(new FtpOptions()),
+            new DefaultRemoteFileEgressPolicy(),
             NullLogger<FtpResourceTypeHandler>.Instance);
         var resource = CreateResource(new FtpConnectionMetadata { Host = "127.0.0.1", Port = 1, Username = "user", Password = "x" });
 
@@ -245,6 +249,7 @@ public sealed class SftpFtpHardeningTests
         return new FtpRemoteFileClientFactory(
             new EphemeralDataProtectionProvider(),
             Options.Create(new FtpOptions { AllowAnyCertificate = allowAnyCertificate }),
+            new DefaultRemoteFileEgressPolicy(),
             NullLogger<FtpRemoteFileClientFactory>.Instance);
     }
 

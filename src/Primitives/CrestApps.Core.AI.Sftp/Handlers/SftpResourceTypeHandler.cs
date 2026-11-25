@@ -1,4 +1,5 @@
 using System.Text;
+using CrestApps.Core.AI.FileSources.FileTransfer;
 using CrestApps.Core.AI.Mcp;
 using CrestApps.Core.AI.Sftp.Models;
 using Microsoft.AspNetCore.DataProtection;
@@ -16,19 +17,23 @@ namespace CrestApps.Core.AI.Sftp.Handlers;
 public sealed class SftpResourceTypeHandler : RemoteFileResourceHandlerBase<SftpConnectionMetadata>
 {
     private readonly IDataProtectionProvider _dataProtectionProvider;
+    private readonly IRemoteFileEgressPolicy _egressPolicy;
     private readonly ILogger<SftpResourceTypeHandler> _logger;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="SftpResourceTypeHandler"/> class.
     /// </summary>
     /// <param name="dataProtectionProvider">The data protection provider.</param>
+    /// <param name="egressPolicy">The policy that resolves and checks the server's address, and the proxy's.</param>
     /// <param name="logger">The logger.</param>
     public SftpResourceTypeHandler(
         IDataProtectionProvider dataProtectionProvider,
+        IRemoteFileEgressPolicy egressPolicy,
         ILogger<SftpResourceTypeHandler> logger)
         : base(SftpResourceConstants.Type, logger)
     {
         _dataProtectionProvider = dataProtectionProvider;
+        _egressPolicy = egressPolicy;
         _logger = logger;
     }
 
@@ -76,6 +81,7 @@ public sealed class SftpResourceTypeHandler : RemoteFileResourceHandlerBase<Sftp
         var password = DataProtectionHelper.Unprotect(protector, metadata.Password, _logger, "Failed to unprotect SFTP {FieldName} for host {Host}", "password", host);
         var privateKey = DataProtectionHelper.Unprotect(protector, metadata.PrivateKey, _logger, "Failed to unprotect SFTP {FieldName} for host {Host}", "private key", host);
         var passphrase = DataProtectionHelper.Unprotect(protector, metadata.Passphrase, _logger, "Failed to unprotect SFTP {FieldName} for host {Host}", "passphrase", host);
+        var proxyPassword = DataProtectionHelper.Unprotect(protector, metadata.ProxyPassword, _logger, "Failed to unprotect SFTP {FieldName} for host {Host}", "proxy password", host);
 
         var authMethods = new List<AuthenticationMethod>();
 
@@ -98,7 +104,7 @@ public sealed class SftpResourceTypeHandler : RemoteFileResourceHandlerBase<Sftp
             throw new InvalidOperationException("No authentication method could be read from the stored credentials.");
         }
 
-        var connectionInfo = new ConnectionInfo(host, metadata.Port ?? 22, username, authMethods.ToArray());
+        var connectionInfo = await SftpConnectionInfoFactory.CreateAsync(metadata, host, proxyPassword, authMethods.ToArray(), _egressPolicy, _logger, cancellationToken);
 
         if (metadata.ConnectionTimeout is > 0)
         {
