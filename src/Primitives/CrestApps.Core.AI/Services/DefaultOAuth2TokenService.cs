@@ -15,9 +15,16 @@ namespace CrestApps.Core.AI.Services;
 /// </summary>
 public sealed class DefaultOAuth2TokenService : IOAuth2TokenService
 {
+    /// <summary>
+    /// The name of the <see cref="HttpClient"/> that sends the client credentials and private key JWT token requests.
+    /// A host can configure this client, for example to check the destination address at connect time.
+    /// </summary>
+    public const string HttpClientName = nameof(DefaultOAuth2TokenService);
+
     private const int ExpirationBufferSeconds = 60;
 
     private readonly IHttpClientFactory _httpClientFactory;
+    private readonly IOAuth2MtlsHandlerFactory _mtlsHandlerFactory;
     private readonly IMemoryCache _cache;
     private readonly TimeProvider _timeProvider;
     private readonly ILogger<DefaultOAuth2TokenService> _logger;
@@ -26,16 +33,19 @@ public sealed class DefaultOAuth2TokenService : IOAuth2TokenService
     /// Initializes a new instance of the <see cref="DefaultOAuth2TokenService"/> class.
     /// </summary>
     /// <param name="httpClientFactory">The http client factory.</param>
+    /// <param name="mtlsHandlerFactory">The factory that creates the handler for mutual TLS token requests.</param>
     /// <param name="cache">The cache.</param>
     /// <param name="timeProvider">The time provider.</param>
     /// <param name="logger">The logger.</param>
     public DefaultOAuth2TokenService(
         IHttpClientFactory httpClientFactory,
+        IOAuth2MtlsHandlerFactory mtlsHandlerFactory,
         IMemoryCache cache,
         TimeProvider timeProvider,
         ILogger<DefaultOAuth2TokenService> logger)
     {
         _httpClientFactory = httpClientFactory;
+        _mtlsHandlerFactory = mtlsHandlerFactory;
         _cache = cache;
         _timeProvider = timeProvider;
         _logger = logger;
@@ -72,7 +82,7 @@ public sealed class DefaultOAuth2TokenService : IOAuth2TokenService
             parameters["scope"] = scopes;
         }
 
-        using var httpClient = _httpClientFactory.CreateClient(nameof(DefaultOAuth2TokenService));
+        using var httpClient = _httpClientFactory.CreateClient(HttpClientName);
 
         return await SendTokenRequestAsync(httpClient, tokenEndpoint, parameters, cacheKey, cancellationToken);
     }
@@ -111,7 +121,7 @@ public sealed class DefaultOAuth2TokenService : IOAuth2TokenService
             parameters["scope"] = scopes;
         }
 
-        using var httpClient = _httpClientFactory.CreateClient(nameof(DefaultOAuth2TokenService));
+        using var httpClient = _httpClientFactory.CreateClient(HttpClientName);
 
         return await SendTokenRequestAsync(httpClient, tokenEndpoint, parameters, cacheKey, cancellationToken);
     }
@@ -150,9 +160,7 @@ public sealed class DefaultOAuth2TokenService : IOAuth2TokenService
         var certificate = string.IsNullOrEmpty(certificatePassword) ? X509CertificateLoader.LoadPkcs12(clientCertificateBytes, null) : X509CertificateLoader.LoadPkcs12(clientCertificateBytes, certificatePassword);
         using (certificate)
         {
-            var handler = new HttpClientHandler();
-            handler.ClientCertificates.Add(certificate);
-            using var httpClient = new HttpClient(handler);
+            using var httpClient = new HttpClient(_mtlsHandlerFactory.CreateHandler(certificate));
 
             return await SendTokenRequestAsync(httpClient, tokenEndpoint, parameters, cacheKey, cancellationToken);
         }

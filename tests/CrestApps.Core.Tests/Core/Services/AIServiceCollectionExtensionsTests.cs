@@ -117,6 +117,61 @@ public sealed class AIServiceCollectionExtensionsTests
         Assert.IsType<Data.YesSql.Services.NamedSourceDocumentCatalog<AIDeployment, AIDeploymentIndex>>(scopedServices.GetRequiredService<ICatalog<AIDeployment>>());
     }
 
+    [Fact]
+    public void AddCoreAIServices_RegistersOAuth2TokenServiceWhoseTokenClientDoesNotFollowRedirects()
+    {
+        var services = CreateBaseServices();
+        services.AddCoreAIServices();
+
+        using var serviceProvider = services.BuildServiceProvider();
+        using var scope = serviceProvider.CreateScope();
+
+        Assert.IsType<DefaultOAuth2TokenService>(scope.ServiceProvider.GetRequiredService<IOAuth2TokenService>());
+        Assert.IsType<DefaultOAuth2MtlsHandlerFactory>(scope.ServiceProvider.GetRequiredService<IOAuth2MtlsHandlerFactory>());
+        Assert.False(FollowsRedirects(GetTokenClientPrimaryHandler(serviceProvider)));
+    }
+
+    [Fact]
+    public void AddCoreAIOAuth2TokenService_KeepsTheHostPrimaryHandlerAndTurnsOffRedirects()
+    {
+        var connectTimeout = TimeSpan.FromSeconds(7);
+        var services = CreateBaseServices();
+        services.AddHttpClient(DefaultOAuth2TokenService.HttpClientName)
+            .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler
+            {
+                ConnectTimeout = connectTimeout,
+            });
+        services.AddCoreAIOAuth2TokenService();
+
+        using var serviceProvider = services.BuildServiceProvider();
+
+        var primaryHandler = Assert.IsType<SocketsHttpHandler>(GetTokenClientPrimaryHandler(serviceProvider));
+        Assert.Equal(connectTimeout, primaryHandler.ConnectTimeout);
+        Assert.False(primaryHandler.AllowAutoRedirect);
+    }
+
+    private static HttpMessageHandler GetTokenClientPrimaryHandler(IServiceProvider serviceProvider)
+    {
+        var handler = serviceProvider.GetRequiredService<IHttpMessageHandlerFactory>().CreateHandler(DefaultOAuth2TokenService.HttpClientName);
+
+        while (handler is DelegatingHandler delegatingHandler)
+        {
+            handler = delegatingHandler.InnerHandler;
+        }
+
+        return handler;
+    }
+
+    private static bool FollowsRedirects(HttpMessageHandler handler)
+    {
+        return handler switch
+        {
+            SocketsHttpHandler socketsHttpHandler => socketsHttpHandler.AllowAutoRedirect,
+            HttpClientHandler httpClientHandler => httpClientHandler.AllowAutoRedirect,
+            _ => throw new InvalidOperationException($"Unexpected primary handler '{handler.GetType()}'."),
+        };
+    }
+
     private static ServiceCollection CreateBaseServices()
     {
         var services = new ServiceCollection();

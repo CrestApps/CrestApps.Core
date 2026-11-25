@@ -165,7 +165,7 @@ public static class ServiceCollectionExtensions
         services.TryAddEnumerable(ServiceDescriptor.Scoped<INamedSourceCatalogSource<AIProviderConnection>, ConfigurationAIProviderConnectionSource>());
 
         services.TryAddSingleton<IAITextNormalizer, DefaultAITextNormalizer>();
-        services.TryAddScoped<IOAuth2TokenService, DefaultOAuth2TokenService>();
+        services.AddCoreAIOAuth2TokenService();
         services.TryAddScoped<IConnectionAuthHeaderBuilder, DefaultConnectionAuthHeaderBuilder>();
         services.TryAddScoped<IAIProfileManager, DefaultAIProfileManager>();
         services.TryAddScoped<INamedCatalogManager<AIProfile>>(sp => sp.GetRequiredService<IAIProfileManager>());
@@ -193,6 +193,41 @@ public static class ServiceCollectionExtensions
         services.TryAddEnumerable(ServiceDescriptor.Scoped<ICatalogEntryHandler<AIProviderConnection>, AIProviderConnectionCatalogHandler>());
 
         services.AddCoreAIDeploymentCapabilities();
+
+        return services;
+    }
+
+    /// <summary>
+    /// Adds the OAuth 2.0 token service that AI connections and MCP clients use to authenticate. Token requests do not
+    /// follow redirects, because the request form carries the client credential. A host can configure the
+    /// <see cref="DefaultOAuth2TokenService.HttpClientName"/> client, and replace <see cref="IOAuth2MtlsHandlerFactory"/>
+    /// to control how mutual TLS token requests connect.
+    /// </summary>
+    /// <param name="services">The service collection.</param>
+    public static IServiceCollection AddCoreAIOAuth2TokenService(this IServiceCollection services)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+
+        services.AddMemoryCache();
+        services.TryAddSingleton(TimeProvider.System);
+
+        // Configures the host's primary handler instead of replacing it, so a handler the host set for this client is kept.
+        services.AddHttpClient(DefaultOAuth2TokenService.HttpClientName)
+            .ConfigurePrimaryHttpMessageHandler((handler, _) =>
+            {
+                if (handler is SocketsHttpHandler socketsHttpHandler)
+                {
+                    socketsHttpHandler.AllowAutoRedirect = false;
+                }
+
+                if (handler is HttpClientHandler httpClientHandler)
+                {
+                    httpClientHandler.AllowAutoRedirect = false;
+                }
+            });
+
+        services.TryAddSingleton<IOAuth2MtlsHandlerFactory, DefaultOAuth2MtlsHandlerFactory>();
+        services.TryAddScoped<IOAuth2TokenService, DefaultOAuth2TokenService>();
 
         return services;
     }
