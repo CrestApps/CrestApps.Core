@@ -1,3 +1,4 @@
+using System.Net;
 using CrestApps.Core.AI.Chat;
 using CrestApps.Core.AI.Claude.Handlers;
 using CrestApps.Core.AI.Claude.Models;
@@ -25,6 +26,16 @@ public static class ServiceCollectionExtensions
 
         services.AddOrchestrator<ClaudeOrchestrator>(ClaudeOrchestrator.OrchestratorName)
             .WithTitle("Claude");
+
+        // The Anthropic SDK's own client decompresses responses, so this one does too.
+        services.AddCoreAIProviderHttpClient(ClaudeClientService.HttpClientName)
+            .ConfigurePrimaryHttpMessageHandler((handler, _) =>
+            {
+                if (handler is SocketsHttpHandler socketsHandler)
+                {
+                    socketsHandler.AutomaticDecompression = DecompressionMethods.All;
+                }
+            });
 
         services.TryAddScoped<ClaudeClientService>();
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IChatInteractionSettingsHandler, ClaudeChatInteractionSettingsHandler>());

@@ -1,4 +1,3 @@
-using System.Collections.Concurrent;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Services;
 using CrestApps.Core.Infrastructure;
@@ -12,15 +11,23 @@ namespace CrestApps.Core.AI.Ollama.Services;
 /// </summary>
 public sealed class OllamaAIClientProvider : AIClientProviderBase
 {
-    private static readonly ConcurrentDictionary<string, OllamaApiClient> _clientCache = new(StringComparer.Ordinal);
+    private readonly IHttpClientFactory _httpClientFactory;
+    private readonly AIProviderClientCache _clientCache;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="OllamaAIClientProvider"/> class.
     /// </summary>
     /// <param name="serviceProvider">The service provider.</param>
-    public OllamaAIClientProvider(IServiceProvider serviceProvider)
+    /// <param name="httpClientFactory">The factory of the <see cref="OllamaConstants.HttpClientName"/> client the Ollama client sends its requests through.</param>
+    /// <param name="clientCache">The cache that holds the Ollama clients this container has built.</param>
+    public OllamaAIClientProvider(
+        IServiceProvider serviceProvider,
+        IHttpClientFactory httpClientFactory,
+        AIProviderClientCache clientCache)
         : base(serviceProvider)
     {
+        _httpClientFactory = httpClientFactory;
+        _clientCache = clientCache;
     }
 
     /// <summary>
@@ -75,24 +82,16 @@ public sealed class OllamaAIClientProvider : AIClientProviderBase
         throw new NotSupportedException("Ollama does not currently support speech-to-text functionality.");
     }
 
-    /// <summary>
-    /// Clears the cached Ollama client instances, forcing new clients to be created on next use.
-    /// </summary>
-    public static void ClearCache()
-    {
-        foreach (var client in _clientCache.Values)
-        {
-            client.Dispose();
-        }
-
-        _clientCache.Clear();
-    }
-
-    private static OllamaApiClient GetOllamaClient(AIProviderConnectionEntry connection, string deploymentName)
+    private OllamaApiClient GetOllamaClient(AIProviderConnectionEntry connection, string deploymentName)
     {
         var endpoint = connection.GetEndpoint();
-        var cacheKey = $"{endpoint.AbsoluteUri}|{deploymentName}";
 
-        return _clientCache.GetOrAdd(cacheKey, _ => new OllamaApiClient(endpoint, deploymentName));
+        return _clientCache.GetOrAdd($"{endpoint.AbsoluteUri}|{deploymentName}", () =>
+        {
+            var httpClient = _httpClientFactory.CreateClient(OllamaConstants.HttpClientName);
+            httpClient.BaseAddress = endpoint;
+
+            return new OllamaApiClient(httpClient, deploymentName);
+        });
     }
 }

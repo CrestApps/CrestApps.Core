@@ -1,10 +1,10 @@
 using System.ClientModel;
 using System.ClientModel.Primitives;
-using System.Collections.Concurrent;
 using Azure.AI.OpenAI;
 using Azure.Identity;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.OpenAI.Azure.Models;
+using CrestApps.Core.AI.Services;
 using CrestApps.Core.Azure;
 using CrestApps.Core.Azure.Models;
 using CrestApps.Core.Infrastructure;
@@ -14,30 +14,31 @@ namespace CrestApps.Core.AI.OpenAI.Azure.Services;
 
 internal static class AzureOpenAIClientFactory
 {
-    private static readonly ConcurrentDictionary<string, AzureOpenAIClient> _clientCache = new(StringComparer.Ordinal);
-
     /// <summary>
-    /// Clears the cached Azure OpenAI client instances.
-    /// </summary>
-    public static void ClearCache() => _clientCache.Clear();
-
-    /// <summary>
-    /// Creates the operation.
+    /// Gets the Azure OpenAI client for the connection from the container's cache, and builds it the first time. The
+    /// client sends its requests through the <see cref="AzureOpenAIConstants.HttpClientName"/> client.
     /// </summary>
     /// <param name="connection">The connection.</param>
     /// <param name="loggerFactory">The logger factory.</param>
     /// <param name="options">The options.</param>
+    /// <param name="httpClientFactory">The factory of the client the SDK client sends its requests through.</param>
+    /// <param name="clientCache">The cache that holds the SDK clients the container has built.</param>
     public static AzureOpenAIClient Create(
         AIProviderConnectionEntry connection,
         ILoggerFactory loggerFactory,
-        AzureClientOptions options)
+        AzureClientOptions options,
+        IHttpClientFactory httpClientFactory,
+        AIProviderClientCache clientCache)
     {
         ArgumentNullException.ThrowIfNull(connection);
         ArgumentNullException.ThrowIfNull(loggerFactory);
+        ArgumentNullException.ThrowIfNull(httpClientFactory);
+        ArgumentNullException.ThrowIfNull(clientCache);
 
         var endpoint = connection.GetEndpoint();
         var authType = connection.GetAzureAuthenticationType();
         var identityId = connection.GetIdentityId();
+        var apiKeyHash = authType == AzureAuthenticationType.ApiKey ? AIProviderClientCache.HashSecret(connection.GetApiKey()) : null;
         var enableLogging = options?.EnableLogging ?? false;
         var enableMessageLogging = options?.EnableMessageLogging ?? false;
         var enableMessageContentLogging = options?.EnableMessageContentLogging ?? false;
@@ -47,12 +48,13 @@ internal static class AzureOpenAIClientFactory
         var backoffType = options?.BackoffType ?? AzureRetryBackoffType.Exponential;
         var useJitter = options?.UseJitter ?? true;
         var maxRetryDelay = options?.MaxRetryDelay ?? TimeSpan.FromSeconds(32);
-        var cacheKey = $"{endpoint.AbsoluteUri}|{authType}|{identityId}|{enableLogging}|{enableMessageLogging}|{enableMessageContentLogging}|{enableDefaultRetryPolicy}|{maxRetryAttempts}|{retryDelay}|{backoffType}|{useJitter}|{maxRetryDelay}";
+        var cacheKey = $"{endpoint.AbsoluteUri}|{authType}|{identityId}|{apiKeyHash}|{enableLogging}|{enableMessageLogging}|{enableMessageContentLogging}|{enableDefaultRetryPolicy}|{maxRetryAttempts}|{retryDelay}|{backoffType}|{useJitter}|{maxRetryDelay}";
 
-        return _clientCache.GetOrAdd(cacheKey, _ =>
+        return clientCache.GetOrAdd(cacheKey, () =>
                 {
                     var clientOptions = new AzureOpenAIClientOptions
                     {
+                        Transport = new HttpClientPipelineTransport(httpClientFactory.CreateClient(AzureOpenAIConstants.HttpClientName)),
                         ClientLoggingOptions = new ClientLoggingOptions
                         {
                             LoggerFactory = loggerFactory,

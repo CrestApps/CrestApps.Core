@@ -1,7 +1,11 @@
 #pragma warning disable MEAI001
+using CrestApps.Core.AI.AzureAIInference;
 using CrestApps.Core.AI.AzureAIInference.Services;
 using CrestApps.Core.AI.Models;
+using CrestApps.Core.AI.Ollama;
 using CrestApps.Core.AI.Ollama.Services;
+using CrestApps.Core.AI.OpenAI;
+using CrestApps.Core.AI.OpenAI.Azure;
 using CrestApps.Core.AI.OpenAI.Azure.Models;
 using CrestApps.Core.AI.OpenAI.Azure.Services;
 using CrestApps.Core.AI.OpenAI.Services;
@@ -18,11 +22,25 @@ namespace CrestApps.Core.Tests.Core.Services;
 /// OpenAI and Azure OpenAI construct a real <see cref="IRealtimeClient"/> from the connection, while
 /// providers without a realtime API (Ollama, Azure AI Inference, Azure Speech) surface <see cref="NotSupportedException"/>.
 /// </summary>
-[Collection(AzureOpenAIClientCacheCollection.Name)]
 public sealed class AIClientProviderRealtimeTests
 {
-    private static ServiceProvider EmptyServices()
-        => new ServiceCollection().BuildServiceProvider();
+    /// <summary>
+    /// Builds a provider the way the container does, with the services its package registers.
+    /// </summary>
+    /// <typeparam name="TProvider">The type of the provider.</typeparam>
+    /// <param name="arguments">The constructor arguments the container does not supply.</param>
+    /// <returns>The provider.</returns>
+    private static TProvider CreateProvider<TProvider>(params object[] arguments)
+    {
+        var services = new ServiceCollection()
+            .AddCoreAIOpenAI()
+            .AddCoreAIAzureOpenAI()
+            .AddCoreAIOllama()
+            .AddCoreAIAzureAIInference()
+            .BuildServiceProvider();
+
+        return ActivatorUtilities.CreateInstance<TProvider>(services, arguments);
+    }
 
     private static AIProviderConnectionEntry Connection(params (string Key, string Value)[] values)
         => new(values.ToDictionary(pair => pair.Key, object (pair) => pair.Value));
@@ -30,7 +48,7 @@ public sealed class AIClientProviderRealtimeTests
     [Fact]
     public async Task OpenAI_GetRealtimeClientAsync_UsesConnectionRealtimeDeployment_ReturnsClient()
     {
-        var provider = new OpenAIClientProvider(EmptyServices());
+        var provider = CreateProvider<OpenAIClientProvider>();
         var connection = Connection(("ApiKey", "sk-test-key"), ("RealtimeDeploymentName", "gpt-4o-realtime-preview"));
 
         var client = await provider.GetRealtimeClientAsync(connection);
@@ -42,7 +60,7 @@ public sealed class AIClientProviderRealtimeTests
     [Fact]
     public async Task OpenAI_GetRealtimeClientAsync_UsesExplicitDeployment_ReturnsClient()
     {
-        var provider = new OpenAIClientProvider(EmptyServices());
+        var provider = CreateProvider<OpenAIClientProvider>();
         var connection = Connection(("ApiKey", "sk-test-key"));
 
         var client = await provider.GetRealtimeClientAsync(connection, "gpt-4o-realtime-preview");
@@ -53,7 +71,7 @@ public sealed class AIClientProviderRealtimeTests
     [Fact]
     public async Task OpenAI_GetRealtimeClientAsync_WhenNoDeploymentName_ThrowsArgumentException()
     {
-        var provider = new OpenAIClientProvider(EmptyServices());
+        var provider = CreateProvider<OpenAIClientProvider>();
         var connection = Connection(("ApiKey", "sk-test-key"));
 
         await Assert.ThrowsAsync<ArgumentException>(async () => await provider.GetRealtimeClientAsync(connection));
@@ -66,7 +84,7 @@ public sealed class AIClientProviderRealtimeTests
         // rather than the SDK, because the pinned Azure.AI.OpenAI is version-incompatible with the OpenAI SDK
         // required by Microsoft.Extensions.AI.OpenAI.
         var options = Mock.Of<IOptionsSnapshot<AzureClientOptions>>(snapshot => snapshot.Value == new AzureClientOptions());
-        var provider = new AzureOpenAIClientProvider(EmptyServices(), NullLoggerFactory.Instance, options);
+        var provider = CreateProvider<AzureOpenAIClientProvider>(NullLoggerFactory.Instance, options);
         var connection = Connection(
             ("Endpoint", "https://unit-test.openai.azure.com/"),
             ("ApiKey", "azure-test-key"),
@@ -82,7 +100,7 @@ public sealed class AIClientProviderRealtimeTests
     public async Task AzureOpenAI_GetRealtimeClientAsync_WhenNoDeploymentName_ThrowsArgumentException()
     {
         var options = Mock.Of<IOptionsSnapshot<AzureClientOptions>>(snapshot => snapshot.Value == new AzureClientOptions());
-        var provider = new AzureOpenAIClientProvider(EmptyServices(), NullLoggerFactory.Instance, options);
+        var provider = CreateProvider<AzureOpenAIClientProvider>(NullLoggerFactory.Instance, options);
         var connection = Connection(
             ("Endpoint", "https://unit-test.openai.azure.com/"),
             ("ApiKey", "azure-test-key"),
@@ -94,7 +112,7 @@ public sealed class AIClientProviderRealtimeTests
     [Fact]
     public async Task Ollama_GetRealtimeClientAsync_ThrowsNotSupported()
     {
-        var provider = new OllamaAIClientProvider(EmptyServices());
+        var provider = CreateProvider<OllamaAIClientProvider>();
 
         await Assert.ThrowsAsync<NotSupportedException>(async () => await provider.GetRealtimeClientAsync(Connection()));
     }
@@ -102,7 +120,7 @@ public sealed class AIClientProviderRealtimeTests
     [Fact]
     public async Task AzureAIInference_GetRealtimeClientAsync_ThrowsNotSupported()
     {
-        var provider = new AzureAIInferenceClientProvider(EmptyServices());
+        var provider = CreateProvider<AzureAIInferenceClientProvider>();
 
         await Assert.ThrowsAsync<NotSupportedException>(async () => await provider.GetRealtimeClientAsync(Connection()));
     }
@@ -118,7 +136,7 @@ public sealed class AIClientProviderRealtimeTests
     [Fact]
     public async Task OpenAI_GetRealtimeVoicesAsync_ReturnsProviderVoiceSet()
     {
-        var provider = new OpenAIClientProvider(EmptyServices());
+        var provider = CreateProvider<OpenAIClientProvider>();
 
         var voices = await provider.GetRealtimeVoicesAsync(Connection());
 
@@ -132,7 +150,7 @@ public sealed class AIClientProviderRealtimeTests
     public async Task AzureOpenAI_GetRealtimeVoicesAsync_ReturnsProviderVoiceSet()
     {
         var options = Mock.Of<IOptionsSnapshot<AzureClientOptions>>(snapshot => snapshot.Value == new AzureClientOptions());
-        var provider = new AzureOpenAIClientProvider(EmptyServices(), NullLoggerFactory.Instance, options);
+        var provider = CreateProvider<AzureOpenAIClientProvider>(NullLoggerFactory.Instance, options);
 
         Assert.Contains(await provider.GetRealtimeVoicesAsync(Connection()), voice => voice.Id == "alloy");
     }
@@ -140,7 +158,7 @@ public sealed class AIClientProviderRealtimeTests
     [Fact]
     public async Task Ollama_GetRealtimeVoicesAsync_ReturnsEmpty()
     {
-        var provider = new OllamaAIClientProvider(EmptyServices());
+        var provider = CreateProvider<OllamaAIClientProvider>();
 
         Assert.Empty(await provider.GetRealtimeVoicesAsync(Connection()));
     }

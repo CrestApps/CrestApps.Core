@@ -11,7 +11,14 @@ namespace CrestApps.Core.AI.Claude.Services;
 /// </summary>
 public sealed class ClaudeClientService
 {
+    /// <summary>
+    /// The name of the <see cref="IHttpClientFactory"/> client the Anthropic client sends its requests through.
+    /// Configure a client of this name to give Claude the host's own transport.
+    /// </summary>
+    public const string HttpClientName = "CrestApps.Claude";
+
     private readonly IOptionsSnapshot<ClaudeOptions> _options;
+    private readonly IHttpClientFactory _httpClientFactory;
     private readonly ILogger<ClaudeClientService> _logger;
     private readonly HttpClient _httpClient;
 
@@ -19,12 +26,15 @@ public sealed class ClaudeClientService
     /// Initializes a new instance of the <see cref="ClaudeClientService"/> class.
     /// </summary>
     /// <param name="options">The options.</param>
+    /// <param name="httpClientFactory">The factory of the <see cref="HttpClientName"/> client the Anthropic client sends its requests through.</param>
     /// <param name="logger">The logger.</param>
     public ClaudeClientService(
         IOptionsSnapshot<ClaudeOptions> options,
+        IHttpClientFactory httpClientFactory,
         ILogger<ClaudeClientService> logger)
     {
         _options = options;
+        _httpClientFactory = httpClientFactory;
         _logger = logger;
     }
 
@@ -39,7 +49,7 @@ public sealed class ClaudeClientService
         IOptionsSnapshot<ClaudeOptions> options,
         ILogger<ClaudeClientService> logger,
         HttpClient httpClient)
-        : this(options, logger)
+        : this(options, null, logger)
     {
         _httpClient = httpClient;
     }
@@ -58,16 +68,12 @@ public sealed class ClaudeClientService
         var clientOptions = new ClientOptions
         {
             ApiKey = options.ApiKey,
+            HttpClient = _httpClient ?? _httpClientFactory.CreateClient(HttpClientName),
         };
 
         if (!string.IsNullOrWhiteSpace(options.BaseUrl))
         {
             clientOptions.BaseUrl = options.BaseUrl;
-        }
-
-        if (_httpClient is not null)
-        {
-            clientOptions.HttpClient = _httpClient;
         }
 
         return new AnthropicClient(clientOptions);

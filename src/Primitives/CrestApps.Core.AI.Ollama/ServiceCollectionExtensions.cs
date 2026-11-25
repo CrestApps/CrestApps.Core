@@ -21,6 +21,8 @@ public static class ServiceCollectionExtensions
     {
         ArgumentNullException.ThrowIfNull(services);
 
+        services.AddHttpClient(OllamaConstants.HttpClientName);
+        services.TryAddSingleton<AIProviderClientCache>();
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IAIClientProvider, OllamaAIClientProvider>());
 
         services.AddCoreAICompletionClient<ProviderAICompletionClient<OllamaClientMarker>>(OllamaConstants.ClientName, o =>

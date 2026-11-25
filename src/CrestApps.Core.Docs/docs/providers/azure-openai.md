@@ -55,6 +55,7 @@ Azure OpenAI requires an endpoint URL and either an API key or Azure AD credenti
 | Constant | Value |
 |----------|-------|
 | `AzureOpenAIConstants.ClientName` | `"Azure"` |
+| `AzureOpenAIConstants.HttpClientName` | `"CrestApps.AzureOpenAI"`, the `HttpClient` requests are sent through, including those to the Responses API; see [the host's own transport](index.md#the-hosts-own-transport) |
 
 Use `CrestApps:AI:AzureClient` for Azure SDK settings shared by all Azure OpenAI connections, including logging plus the default SDK retry policy used by the framework's Azure OpenAI completion path:
 

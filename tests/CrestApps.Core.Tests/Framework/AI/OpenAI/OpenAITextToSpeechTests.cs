@@ -20,8 +20,8 @@ namespace CrestApps.Core.Tests.Framework.AI.OpenAI;
 /// </remarks>
 public sealed class OpenAITextToSpeechTests
 {
-    private static ServiceProvider EmptyServices()
-        => new ServiceCollection().BuildServiceProvider();
+    private static OpenAIClientProvider CreateProvider()
+        => ActivatorUtilities.CreateInstance<OpenAIClientProvider>(new ServiceCollection().AddCoreAIOpenAI().BuildServiceProvider());
 
     private static AIProviderConnectionEntry Connection(params (string Key, string Value)[] values)
         => new(values.ToDictionary(pair => pair.Key, object (pair) => pair.Value));
@@ -30,7 +30,7 @@ public sealed class OpenAITextToSpeechTests
     public async Task GetSpeechVoicesAsync_ListsEveryVoiceOfTheCurrentModels()
     {
         // Arrange
-        var provider = new OpenAIClientProvider(EmptyServices());
+        var provider = CreateProvider();
 
         // Act
         var voices = await provider.GetSpeechVoicesAsync(Connection(("ApiKey", "sk-test-key")), "gpt-4o-mini-tts");
@@ -47,7 +47,7 @@ public sealed class OpenAITextToSpeechTests
     public async Task GetSpeechVoicesAsync_ListsTheSmallerSetOfTheFirstModels(string model)
     {
         // Arrange
-        var provider = new OpenAIClientProvider(EmptyServices());
+        var provider = CreateProvider();
 
         // Act
         var voices = await provider.GetSpeechVoicesAsync(Connection(("ApiKey", "sk-test-key")), model);
@@ -62,7 +62,7 @@ public sealed class OpenAITextToSpeechTests
     public async Task GetTextToSpeechClientAsync_WithoutADeploymentName_Throws()
     {
         // Arrange
-        var provider = new OpenAIClientProvider(EmptyServices());
+        var provider = CreateProvider();
 
         // Act & Assert
         await Assert.ThrowsAsync<ArgumentException>(async () =>
@@ -85,7 +85,7 @@ public sealed class OpenAITextToSpeechTests
         var samples = new byte[2400 * 2];
         var request = AnswerOneSpeechRequestAsync(listener, samples, TestContext.Current.CancellationToken);
 
-        var provider = new OpenAIClientProvider(EmptyServices());
+        var provider = CreateProvider();
         var connection = Connection(("ApiKey", "sk-test-key"), ("Endpoint", $"http://127.0.0.1:{port}/v1"));
         var client = await provider.GetTextToSpeechClientAsync(connection, "gpt-4o-mini-tts");
 
@@ -118,7 +118,7 @@ public sealed class OpenAITextToSpeechTests
         byte[] samples = [1, 2, 3, 4];
         var request = AnswerOneSpeechRequestAsync(listener, samples, TestContext.Current.CancellationToken);
 
-        var provider = new OpenAIClientProvider(EmptyServices());
+        var provider = CreateProvider();
         var connection = Connection(("ApiKey", "sk-test-key"), ("Endpoint", $"http://127.0.0.1:{port}/v1"));
         var client = await provider.GetTextToSpeechClientAsync(connection, "gpt-4o-mini-tts");
         var options = new TextToSpeechOptions { AudioFormat = "Pcm24000", VoiceId = "marin" };
@@ -158,7 +158,7 @@ public sealed class OpenAITextToSpeechTests
         var port = ((IPEndPoint)listener.LocalEndpoint).Port;
         var request = AnswerOneSpeechRequestAsync(listener, [1, 2, 3, 4], TestContext.Current.CancellationToken);
 
-        var provider = new OpenAIClientProvider(EmptyServices());
+        var provider = CreateProvider();
         var connection = Connection(("ApiKey", "sk-test-key"), ("Endpoint", $"http://127.0.0.1:{port}/v1"));
         var client = await provider.GetTextToSpeechClientAsync(connection, model);
         var options = new TextToSpeechOptions

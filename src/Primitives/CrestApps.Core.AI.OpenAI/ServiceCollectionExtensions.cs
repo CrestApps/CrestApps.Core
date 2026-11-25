@@ -22,6 +22,8 @@ public static class ServiceCollectionExtensions
     {
         ArgumentNullException.ThrowIfNull(services);
 
+        services.AddCoreAIProviderHttpClient(OpenAIConstants.HttpClientName);
+        services.TryAddSingleton<AIProviderClientCache>();
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IAIClientProvider, OpenAI.Services.OpenAIClientProvider>());
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IAIProviderConnectionHandler, OpenAIConnectionHandler>());
 

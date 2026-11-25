@@ -106,6 +106,7 @@ Usage metering records cache reads as `CachedInputTokenCount`, so the savings ap
 | --- | --- | --- | --- |
 | `IOrchestrator` | `ClaudeOrchestrator` (name: `"anthropic"`) | Scoped | Streams Claude responses through the shared orchestration pipeline |
 | `ClaudeClientService` | `ClaudeClientService` | Scoped | Creates configured SDK clients and lists available models |
+| `HttpClient` | Named `ClaudeClientService.HttpClientName` (`"CrestApps.Claude"`) | Transient | The transport of the Anthropic client; see [the host's own transport](../providers/index.md#the-hosts-own-transport) |
 | `IChatInteractionSettingsHandler` | `ClaudeChatInteractionSettingsHandler` | Scoped | Persists Anthropic-specific chat settings |
 | `IOrchestrationContextBuilderHandler` | `ClaudeOrchestrationContextHandler` | Scoped | Pushes Anthropic metadata into orchestration context |
 

@@ -65,6 +65,69 @@ public class AIProviderConnectionEntry
 
 Connections are typically stored in a configuration file or database and loaded at startup. See the [MVC Example](../core/mvc-example.md) for a complete setup.
 
+## The host's own transport
+
+Each provider's SDK client sends its requests through a named `HttpClient` from `IHttpClientFactory`. Configure a
+client of the same name to choose the transport. For example, a handler can check the address of every connection a
+provider opens, so an endpoint whose host name resolved to a public address when the connection was saved, and to an
+internal one later, is refused instead of being called with the provider's API key.
+
+| Provider | `HttpClient` name |
+|---|---|
+| OpenAI | `OpenAIConstants.HttpClientName` (`"CrestApps.OpenAI"`) |
+| Azure OpenAI, including its Responses API client | `AzureOpenAIConstants.HttpClientName` (`"CrestApps.AzureOpenAI"`) |
+| Azure AI Inference | `AzureAIInferenceConstants.HttpClientName` (`"CrestApps.AzureAIInference"`) |
+| Ollama | `OllamaConstants.HttpClientName` (`"CrestApps.Ollama"`) |
+| Claude | `ClaudeClientService.HttpClientName` (`"CrestApps.Claude"`) |
+
+```csharp
+builder.Services
+    .AddHttpClient(OpenAIConstants.HttpClientName)
+    .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler
+    {
+        AllowAutoRedirect = false,
+        UseCookies = false,
+        PooledConnectionLifetime = TimeSpan.FromMinutes(2),
+
+        // Your own check of the address each new connection resolves to.
+        ConnectCallback = AddressGuard.ConnectAsync,
+    });
+```
+
+The providers register these clients the way the SDKs set up their own transport: no redirects, no cookies, and no
+`HttpClient.Timeout`, because the SDK applies its own network timeout and retries. The Claude client also decompresses
+responses, like the Anthropic SDK's own client, and the Ollama client keeps the default `HttpClient` it always used. A
+primary handler you supply replaces theirs, so give it the same settings. Keep `PooledConnectionLifetime` set: the SDK
+clients live as long as the container, and a connection is only opened again, and resolved again, when the pool
+retires it.
+
+### One set of clients per container
+
+The OpenAI, Azure OpenAI and Ollama SDK clients are built once and kept in `AIProviderClientCache`, which each provider
+registers as a singleton. Each container, and so each tenant of a multi-tenant host, keeps its own clients and never
+uses another one's client, credentials or transport. A client is keyed on everything it is built from, including a
+hash of its API key, so a rotated key gets a new client. Call `Clear()` on the cache to release the clients built with
+an old key.
+
+### Copilot
+
+The Copilot CLI makes its own model requests. A host that registers a `CopilotRequestHandler` has them sent through
+it, and so through the `HttpClient` it gives the handler. The request handler is an experimental API of the Copilot SDK
+(`GHCP001`), and WebSocket connections the CLI opens do not go through it.
+
+```csharp
+#pragma warning disable GHCP001 // The request handler API of the Copilot SDK is experimental.
+builder.Services.AddHttpClient("CopilotModelRequests", client => client.Timeout = Timeout.InfiniteTimeSpan);
+builder.Services.AddSingleton(services => new CopilotRequestHandler(
+    services.GetRequiredService<IHttpClientFactory>().CreateClient("CopilotModelRequests")));
+#pragma warning restore GHCP001
+```
+
+### Not covered yet
+
+The Azure OpenAI realtime client and the Azure Speech clients open their own connections and do not use these named
+clients.
+
 ## Adding a Custom Provider
 
 Implement these interfaces:

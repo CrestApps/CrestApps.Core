@@ -521,6 +521,35 @@ public static class ServiceCollectionExtensions
     }
 
     /// <summary>
+    /// Registers the named <see cref="HttpClient"/> an AI provider's SDK client sends its requests through, set up the
+    /// way the SDKs set up their own: no timeout of its own, because the SDK applies its own network timeout and
+    /// retries, and no redirects or cookies.
+    /// </summary>
+    /// <remarks>
+    /// A host gives the provider its own transport by configuring a client of the same name, for example with
+    /// <c>ConfigurePrimaryHttpMessageHandler</c> to check the address of every connection the provider opens.
+    /// </remarks>
+    /// <param name="services">The service collection.</param>
+    /// <param name="name">The name of the client.</param>
+    /// <returns>The builder of the named client.</returns>
+    public static IHttpClientBuilder AddCoreAIProviderHttpClient(this IServiceCollection services, string name)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentException.ThrowIfNullOrEmpty(name);
+
+        return services
+            .AddHttpClient(name, client => client.Timeout = Timeout.InfiniteTimeSpan)
+            .ConfigurePrimaryHttpMessageHandler((handler, _) =>
+            {
+                if (handler is SocketsHttpHandler socketsHandler)
+                {
+                    socketsHandler.AllowAutoRedirect = false;
+                    socketsHandler.UseCookies = false;
+                }
+            });
+    }
+
+    /// <summary>
     /// Adds a core AI completion client.
     /// </summary>
     /// <param name="services">The service collection.</param>

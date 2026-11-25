@@ -229,9 +229,19 @@ public sealed class CopilotOrchestrator : IOrchestrator
     /// <c>GithubToken</c> property for GitHub OAuth or <c>UseLoggedInUser = false</c>
     /// for BYOK authentication.
     /// </summary>
+    /// <remarks>
+    /// When the host registers a <c>CopilotRequestHandler</c>, the Copilot CLI sends its model requests through it
+    /// instead of making them itself, so the host chooses their transport. Without one, the CLI makes them itself.
+    /// </remarks>
     private async Task<CopilotClientOptions> BuildClientOptionsAsync(OrchestrationContext context, CopilotSessionMetadata metadata, CopilotOptions settings)
     {
-        var clientOptions = new CopilotClientOptions();
+#pragma warning disable GHCP001 // The request handler API of the Copilot SDK is experimental.
+        var clientOptions = new CopilotClientOptions
+        {
+            RequestHandler = context.ServiceProvider?.GetService<CopilotRequestHandler>(),
+        };
+#pragma warning restore GHCP001
+
         if (settings.AuthenticationType == CopilotAuthenticationType.ApiKey)
         {
             // BYOK mode - no GitHub token needed; provider config is on SessionConfig.

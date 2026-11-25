@@ -1,7 +1,5 @@
 using System.ClientModel;
-using System.Collections.Concurrent;
-using System.Security.Cryptography;
-using System.Text;
+using System.ClientModel.Primitives;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Services;
 using CrestApps.Core.Infrastructure;
@@ -19,17 +17,24 @@ public sealed class OpenAIClientProvider : AIClientProviderBase
 {
     private const string OpenAIApiHost = "api.openai.com";
 
-    private static readonly ConcurrentDictionary<string, OpenAIClient> _clientCache = new(StringComparer.Ordinal);
-
+    private readonly IHttpClientFactory _httpClientFactory;
+    private readonly AIProviderClientCache _clientCache;
     private readonly ILogger _logger;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="OpenAIClientProvider"/> class.
     /// </summary>
     /// <param name="serviceProvider">The service provider.</param>
-    public OpenAIClientProvider(IServiceProvider serviceProvider)
+    /// <param name="httpClientFactory">The factory of the <see cref="OpenAIConstants.HttpClientName"/> client the SDK client sends its requests through.</param>
+    /// <param name="clientCache">The cache that holds the SDK clients this container has built.</param>
+    public OpenAIClientProvider(
+        IServiceProvider serviceProvider,
+        IHttpClientFactory httpClientFactory,
+        AIProviderClientCache clientCache)
         : base(serviceProvider)
     {
+        _httpClientFactory = httpClientFactory;
+        _clientCache = clientCache;
         _logger = serviceProvider.GetService<ILogger<OpenAIClientProvider>>();
     }
 
@@ -188,29 +193,18 @@ public sealed class OpenAIClientProvider : AIClientProviderBase
         return Task.FromResult(OpenAITextToSpeechVoices.For(deploymentName));
     }
 
-    private static OpenAIClient GetOpenAIClient(AIProviderConnectionEntry connection)
+    private OpenAIClient GetOpenAIClient(AIProviderConnectionEntry connection)
     {
         var apiKey = connection.GetApiKey();
         var endpoint = connection.GetEndpoint(false);
-        var cacheKey = BuildCacheKey(endpoint, apiKey);
 
-        return _clientCache.GetOrAdd(cacheKey, _ =>
-                {
-                    if (endpoint is null)
-                    {
-                        return new OpenAIClient(apiKey);
-                    }
-
-                    return new OpenAIClient(new ApiKeyCredential(apiKey), new OpenAIClientOptions { Endpoint = endpoint, });
-                });
+        return _clientCache.GetOrAdd($"{endpoint?.AbsoluteUri}|{AIProviderClientCache.HashSecret(apiKey)}", () =>
+            new OpenAIClient(new ApiKeyCredential(apiKey), new OpenAIClientOptions
+            {
+                Endpoint = endpoint,
+                Transport = new HttpClientPipelineTransport(_httpClientFactory.CreateClient(OpenAIConstants.HttpClientName)),
+            }));
     }
-
-    /// <summary>
-    /// Clears the cached OpenAI client instances, forcing new clients to be created on next use.
-    /// Useful when credentials are rotated.
-    /// </summary>
-    public static void ClearCache()
-        => _clientCache.Clear();
 
     private bool UseResponsesRouting(AIProviderConnectionEntry connection)
     {
@@ -239,12 +233,4 @@ public sealed class OpenAIClientProvider : AIClientProviderBase
     private static bool IsOpenAIHost(string host)
         => host.Equals(OpenAIApiHost, StringComparison.OrdinalIgnoreCase) ||
             host.EndsWith("." + OpenAIApiHost, StringComparison.OrdinalIgnoreCase);
-
-    private static string BuildCacheKey(Uri endpoint, string apiKey)
-    {
-        var keyBytes = SHA256.HashData(Encoding.UTF8.GetBytes(apiKey ?? string.Empty));
-        var keyHash = Convert.ToHexStringLower(keyBytes);
-
-        return $"{endpoint?.AbsoluteUri}|{keyHash}";
-    }
 }
