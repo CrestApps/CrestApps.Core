@@ -56,6 +56,7 @@ The MCP client framework:
 |---------|---------------|----------|---------|
 | `McpService` | — | Scoped | Creates MCP clients for configured connections |
 | `IOAuth2TokenService` | `DefaultOAuth2TokenService` | Scoped | OAuth2 token acquisition and caching |
+| `IOAuth2MtlsHandlerFactory` | `DefaultOAuth2MtlsHandlerFactory` | Singleton | Creates the handler for mTLS token requests |
 | `IMcpMetadataPromptGenerator` | `DefaultMcpMetadataPromptGenerator` | Singleton | Builds prompt text from remote MCP metadata |
 | `IMcpCapabilityEmbeddingCacheProvider` | `InMemoryMcpCapabilityEmbeddingCacheProvider` | Singleton | Caches capability embeddings for hybrid MCP resolution |
 | `IMcpServerMetadataCacheProvider` | `DefaultMcpServerMetadataProvider` | Scoped | Loads and caches remote MCP server metadata |
@@ -186,6 +187,34 @@ public interface IOAuth2TokenService
 ```
 
 The default implementation (`DefaultOAuth2TokenService`) caches tokens in `IMemoryCache` with a 60-second expiration buffer to prevent token expiry during active requests.
+
+Token requests do not follow redirects, because the request form carries the client credential. A token endpoint that answers with a redirect fails, so configure the address the redirect points to.
+
+The client credentials and private key JWT requests go through the named `HttpClient` `DefaultOAuth2TokenService.HttpClientName`. Configure that client to control where they connect. A primary handler you set for it is kept, with redirects turned off.
+
+The mTLS request presents a client certificate, so it gets a new handler for each request from `IOAuth2MtlsHandlerFactory`. The default, `DefaultOAuth2MtlsHandlerFactory`, returns a `SocketsHttpHandler` that presents the certificate and does not follow redirects. Register your own factory to control where mTLS requests connect. It must return a new handler on each call, because the token service disposes it after the request:
+
+```csharp
+public sealed class GuardedOAuth2MtlsHandlerFactory : IOAuth2MtlsHandlerFactory
+{
+    public HttpMessageHandler CreateHandler(X509Certificate2 clientCertificate)
+    {
+        return new SocketsHttpHandler
+        {
+            AllowAutoRedirect = false,
+            SslOptions =
+            {
+                ClientCertificates = [clientCertificate],
+            },
+            ConnectCallback = ConnectToAllowedAddressAsync,
+        };
+    }
+}
+
+builder.Services.AddSingleton<IOAuth2MtlsHandlerFactory, GuardedOAuth2MtlsHandlerFactory>();
+```
+
+`ConnectToAllowedAddressAsync` stands for your own callback that resolves the host, refuses addresses it should not reach, and opens the socket.
 
 ## Connection Management
 

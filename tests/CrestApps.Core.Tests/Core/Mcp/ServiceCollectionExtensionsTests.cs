@@ -2,6 +2,7 @@ using CrestApps.Core.AI.Completions;
 using CrestApps.Core.AI.Mcp;
 using CrestApps.Core.AI.Mcp.Models;
 using CrestApps.Core.AI.Mcp.Services;
+using CrestApps.Core.AI.Services;
 using CrestApps.Core.AI.Tooling;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
@@ -43,6 +44,21 @@ public sealed class ServiceCollectionExtensionsTests
 
         Assert.Contains(McpConstants.TransportTypes.Sse, options.TransportTypes.Keys);
         Assert.DoesNotContain(McpConstants.TransportTypes.StdIo, options.TransportTypes.Keys);
+    }
+
+    [Fact]
+    public void AddCoreAIMcpServices_ResolvesOAuth2TokenServiceWithoutCoreAIServices()
+    {
+        var services = new ServiceCollection();
+
+        services.AddLogging();
+        services.AddCoreAIMcpServices();
+
+        using var serviceProvider = services.BuildServiceProvider();
+        using var scope = serviceProvider.CreateScope();
+
+        Assert.IsType<DefaultOAuth2TokenService>(scope.ServiceProvider.GetRequiredService<IOAuth2TokenService>());
+        Assert.IsType<DefaultOAuth2MtlsHandlerFactory>(scope.ServiceProvider.GetRequiredService<IOAuth2MtlsHandlerFactory>());
     }
 
     [Fact]

@@ -1,4 +1,6 @@
 using System.Net;
+using System.Security.Cryptography;
+using System.Security.Cryptography.X509Certificates;
 using System.Text.Json;
 using CrestApps.Core.AI.Services;
 using Microsoft.Extensions.Caching.Memory;
@@ -298,14 +300,69 @@ public sealed class DefaultOAuth2TokenServiceTests
         Assert.Equal(1, callCount);
     }
 
-    private static DefaultOAuth2TokenService CreateService(MockHttpMessageHandler handler)
+    [Fact]
+    public async Task AcquireTokenWithMtlsAsync_SendsRequestThroughMtlsHandlerWithClientCertificate()
+    {
+        // Arrange
+        var certificatePassword = "test-certificate-password";
+        var clientCertificateBytes = CreateClientCertificatePfx(certificatePassword);
+        using var expectedCertificate = X509CertificateLoader.LoadPkcs12(clientCertificateBytes, certificatePassword);
+        Dictionary<string, string> capturedForm = null;
+        var namedClientCallCount = 0;
+        var mtlsHandlerFactory = new CapturingMtlsHandlerFactory(CreateHandler(new TokenResponse("mtls-token", "Bearer", 3600), request =>
+        {
+            capturedForm = ParseFormContent(request);
+        }));
+        var service = CreateService(CreateHandler(new TokenResponse("named-client-token", "Bearer", 3600), _ => namedClientCallCount++), mtlsHandlerFactory);
+        var ct = TestContext.Current.CancellationToken;
+
+        // Act
+        var token = await service.AcquireTokenWithMtlsAsync(TokenEndpoint, ClientId, clientCertificateBytes, certificatePassword, "read", ct);
+
+        // Assert
+        Assert.Equal("mtls-token", token);
+        Assert.Equal(expectedCertificate.Thumbprint, mtlsHandlerFactory.ClientCertificateThumbprint);
+        Assert.Equal(0, namedClientCallCount);
+        Assert.NotNull(capturedForm);
+        Assert.Equal("client_credentials", capturedForm["grant_type"]);
+        Assert.Equal(ClientId, capturedForm["client_id"]);
+        Assert.Equal("read", capturedForm["scope"]);
+    }
+
+    [Fact]
+    public void DefaultOAuth2MtlsHandlerFactory_CreateHandler_PresentsCertificateAndDoesNotFollowRedirects()
+    {
+        // Arrange
+        using var certificate = X509CertificateLoader.LoadPkcs12(CreateClientCertificatePfx(null), null);
+        var factory = new DefaultOAuth2MtlsHandlerFactory();
+
+        // Act
+        using var handler = factory.CreateHandler(certificate);
+
+        // Assert
+        var socketsHttpHandler = Assert.IsType<SocketsHttpHandler>(handler);
+        Assert.False(socketsHttpHandler.AllowAutoRedirect);
+        Assert.Same(certificate, Assert.Single(socketsHttpHandler.SslOptions.ClientCertificates));
+    }
+
+    private static DefaultOAuth2TokenService CreateService(MockHttpMessageHandler handler, IOAuth2MtlsHandlerFactory mtlsHandlerFactory = null)
     {
         var factory = new MockHttpClientFactory(handler);
         var cache = new MemoryCache(new MemoryCacheOptions());
         var timeProvider = TimeProvider.System;
         var logger = NullLogger<DefaultOAuth2TokenService>.Instance;
 
-        return new DefaultOAuth2TokenService(factory, cache, timeProvider, logger);
+        return new DefaultOAuth2TokenService(factory, mtlsHandlerFactory ?? new DefaultOAuth2MtlsHandlerFactory(), cache, timeProvider, logger);
+    }
+
+    private static byte[] CreateClientCertificatePfx(string password)
+    {
+        using var rsa = RSA.Create(2048);
+        var request = new CertificateRequest("CN=oauth2-mtls-test-client", rsa, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
+        var now = TimeProvider.System.GetUtcNow();
+        using var certificate = request.CreateSelfSigned(now.AddMinutes(-5), now.AddHours(1));
+
+        return certificate.Export(X509ContentType.Pfx, password);
     }
 
     private static MockHttpMessageHandler CreateHandler(TokenResponse tokenResponse, Action<HttpRequestMessage> onRequest = null)
@@ -408,5 +465,24 @@ public sealed class DefaultOAuth2TokenServiceTests
         }
 
         public HttpClient CreateClient(string name) => new(_handler);
+    }
+
+    private sealed class CapturingMtlsHandlerFactory : IOAuth2MtlsHandlerFactory
+    {
+        private readonly HttpMessageHandler _handler;
+
+        public CapturingMtlsHandlerFactory(HttpMessageHandler handler)
+        {
+            _handler = handler;
+        }
+
+        public string ClientCertificateThumbprint { get; private set; }
+
+        public HttpMessageHandler CreateHandler(X509Certificate2 clientCertificate)
+        {
+            ClientCertificateThumbprint = clientCertificate.Thumbprint;
+
+            return _handler;
+        }
     }
 }

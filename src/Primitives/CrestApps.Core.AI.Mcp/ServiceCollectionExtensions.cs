@@ -36,7 +36,7 @@ public static class ServiceCollectionExtensions
         services.AddDataProtection();
 
         services.TryAddScoped<McpService>();
-        services.TryAddScoped<CrestApps.Core.AI.Services.IOAuth2TokenService, CrestApps.Core.AI.Services.DefaultOAuth2TokenService>();
+        services.AddCoreAIOAuth2TokenService();
         services.TryAddSingleton<IMcpMetadataPromptGenerator, DefaultMcpMetadataPromptGenerator>();
         services.TryAddSingleton<IMcpCapabilityEmbeddingCacheProvider, InMemoryMcpCapabilityEmbeddingCacheProvider>();
         services.TryAddScoped<IMcpServerMetadataCacheProvider, DefaultMcpServerMetadataProvider>();
