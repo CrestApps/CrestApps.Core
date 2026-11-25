@@ -119,4 +119,38 @@ public sealed class AIProfileCompletionContextBuilderHandlerTests
 
         Assert.Null(completionContext.GetToolApprovalPolicy());
     }
+
+    [Fact]
+    public async Task BuildingAsync_AgentProfile_SetsRunningAgentName()
+    {
+        var handler = new AIProfileCompletionContextBuilderHandler(Mock.Of<ITemplateService>());
+        var profile = new AIProfile
+        {
+            Name = "research-agent",
+            Type = AIProfileType.Agent,
+        };
+
+        var completionContext = new AICompletionContext();
+
+        await handler.BuildingAsync(new AICompletionContextBuildingContext(profile, completionContext));
+
+        Assert.Equal("research-agent", completionContext.RunningAgentName);
+    }
+
+    [Fact]
+    public async Task BuildingAsync_ChatProfile_LeavesRunningAgentNameUnset()
+    {
+        var handler = new AIProfileCompletionContextBuilderHandler(Mock.Of<ITemplateService>());
+        var profile = new AIProfile
+        {
+            Name = "support-chat",
+            Type = AIProfileType.Chat,
+        };
+
+        var completionContext = new AICompletionContext();
+
+        await handler.BuildingAsync(new AICompletionContextBuildingContext(profile, completionContext));
+
+        Assert.Null(completionContext.RunningAgentName);
+    }
 }

@@ -245,7 +245,7 @@ public sealed class AIProfileController : Controller
         }
 
         model.SelectedToolNames = await GetValidToolNamesAsync(model.SelectedToolNames);
-        model.SelectedAgentNames = await GetValidAgentNamesAsync(model.SelectedAgentNames);
+        model.SelectedAgentNames = await GetValidAgentNamesAsync(model.SelectedAgentNames, existing.ItemId);
         model.SelectedA2AConnectionIds = await GetValidA2AConnectionIdsAsync(model.SelectedA2AConnectionIds);
         model.SelectedMcpConnectionIds = await GetValidMcpConnectionIdsAsync(model.SelectedMcpConnectionIds);
         model.SelectedToolInstanceNames = await GetValidToolInstanceNamesAsync(model.SelectedToolInstanceNames);
@@ -385,7 +385,8 @@ public sealed class AIProfileController : Controller
         model.AvailableToolInstances = toolInstances.OrderBy(i => i.Name, StringComparer.OrdinalIgnoreCase).Select(i => new AIToolInstanceSelectionItem { ItemId = i.ItemId, Name = i.Name, Description = i.Description, Source = i.Source, IsSelected = selectedToolInstanceNames.Contains(i.Name), }).ToList();
         var allAgents = await _profileManager.GetAsync(AIProfileType.Agent) ?? [];
         var selectedAgentNames = new HashSet<string>(model.SelectedAgentNames ?? [], StringComparer.OrdinalIgnoreCase);
-        model.AvailableAgents = allAgents.Where(a => a.IsUserSelectableAgent()).OrderBy(a => a.DisplayText ?? a.Name, StringComparer.OrdinalIgnoreCase).Select(a => new AgentSelectionItem { Name = a.Name, DisplayText = a.DisplayText ?? a.Name, Description = a.Description, IsSelected = selectedAgentNames.Contains(a.Name), }).ToList();
+        // An agent is not offered to itself: the profile being edited is left out of its own list.
+        model.AvailableAgents = allAgents.Where(a => a.IsUserSelectableAgent() && !IsProfile(a, model.ItemId)).OrderBy(a => a.DisplayText ?? a.Name, StringComparer.OrdinalIgnoreCase).Select(a => new AgentSelectionItem { Name = a.Name, DisplayText = a.DisplayText ?? a.Name, Description = a.Description, IsSelected = selectedAgentNames.Contains(a.Name), }).ToList();
         var allDataSources = await _dataSourceStore.GetAllAsync();
         model.DataSources = allDataSources.OrderBy(ds => ds.DisplayText, StringComparer.OrdinalIgnoreCase).Select(ds => new SelectListItem(ds.DisplayText, ds.ItemId)).ToList();
         var documentSettings = _interactionDocumentOptions.CurrentValue;
@@ -416,11 +417,13 @@ public sealed class AIProfileController : Controller
             .ToArray();
     }
 
-    private async Task<string[]> GetValidAgentNamesAsync(IEnumerable<string> selectedNames)
+    private async Task<string[]> GetValidAgentNamesAsync(IEnumerable<string> selectedNames, string profileItemId = null)
     {
         var allAgents = await _profileManager.GetAsync(AIProfileType.Agent) ?? [];
+
+        // A profile cannot pick itself as one of its agents, even from a posted form.
         var validAgentNames = allAgents
-            .Where(agent => agent.IsUserSelectableAgent())
+            .Where(agent => agent.IsUserSelectableAgent() && !IsProfile(agent, profileItemId))
             .Select(agent => agent.Name)
             .Where(name => !string.IsNullOrWhiteSpace(name))
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
@@ -429,6 +432,18 @@ public sealed class AIProfileController : Controller
             .Where(name => !string.IsNullOrWhiteSpace(name) && validAgentNames.Contains(name))
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToArray();
+    }
+
+    /// <summary>
+    /// Determines whether the agent is the profile with the given id. A new profile has no id yet, so no agent is it.
+    /// </summary>
+    /// <param name="agent">The agent profile to check.</param>
+    /// <param name="profileItemId">The id of the profile being edited, or <see langword="null"/> for a new profile.</param>
+    /// <returns><see langword="true"/> when the agent is that profile; otherwise <see langword="false"/>.</returns>
+    private static bool IsProfile(AIProfile agent, string profileItemId)
+    {
+        return !string.IsNullOrEmpty(profileItemId) &&
+            string.Equals(agent.ItemId, profileItemId, StringComparison.Ordinal);
     }
 
     private async Task<string[]> GetValidA2AConnectionIdsAsync(IEnumerable<string> selectedIds)

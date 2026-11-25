@@ -37,6 +37,37 @@ public sealed class AgentToolRegistryProviderTests
         Assert.Empty(entries);
     }
 
+    [Fact]
+    public async Task GetToolsAsync_AlwaysAvailableAgentRunDirectly_IsNotOfferedToItself()
+    {
+        var provider = CreateProvider(BuildAlwaysAvailableAgent());
+
+        using var scope = AIInvocationScope.Begin();
+
+        var entries = await provider.GetToolsAsync(new AICompletionContext { RunningAgentName = "always-agent" }, TestContext.Current.CancellationToken);
+
+        Assert.Empty(entries);
+    }
+
+    [Fact]
+    public async Task GetToolsAsync_AgentListingItself_OffersOnlyTheOtherAgents()
+    {
+        var provider = CreateProvider(BuildOnDemandAgent("self-agent"), BuildOnDemandAgent("other-agent"));
+
+        using var scope = AIInvocationScope.Begin();
+
+        var context = new AICompletionContext
+        {
+            AgentNames = ["self-agent", "other-agent"],
+            RunningAgentName = "Self-Agent",
+        };
+
+        var entries = await provider.GetToolsAsync(context, TestContext.Current.CancellationToken);
+
+        var entry = Assert.Single(entries);
+        Assert.Equal("other-agent", entry.Name);
+    }
+
     private static AgentToolRegistryProvider CreateProvider(params AIProfile[] agents)
     {
         var manager = new Mock<IAIProfileManager>();
@@ -58,6 +89,21 @@ public sealed class AgentToolRegistryProviderTests
         };
 
         agent.Put(new AgentMetadata { Availability = AgentAvailability.AlwaysAvailable });
+
+        return agent;
+    }
+
+    private static AIProfile BuildOnDemandAgent(string name)
+    {
+        var agent = new AIProfile
+        {
+            ItemId = $"{name}-id",
+            Name = name,
+            Description = $"The {name} test agent.",
+            Type = AIProfileType.Agent,
+        };
+
+        agent.Put(new AgentMetadata { Availability = AgentAvailability.OnDemand });
 
         return agent;
     }

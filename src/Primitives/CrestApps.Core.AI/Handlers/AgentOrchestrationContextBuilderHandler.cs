@@ -73,6 +73,12 @@ internal sealed class AgentOrchestrationContextBuilderHandler : IOrchestrationCo
                 continue;
             }
 
+            // An agent run directly is never told about itself, matching AgentToolRegistryProvider.
+            if (string.Equals(agent.Name, completionContext.RunningAgentName, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
             var isAlwaysAvailable = agent.TryGet<AgentMetadata>(out var agentMetadata)
                 && agentMetadata.Availability == AgentAvailability.AlwaysAvailable;
             if (isAlwaysAvailable || (requestedAgentNames is { Length: > 0 } && requestedAgentNames.Contains(agent.Name, StringComparer.OrdinalIgnoreCase)))

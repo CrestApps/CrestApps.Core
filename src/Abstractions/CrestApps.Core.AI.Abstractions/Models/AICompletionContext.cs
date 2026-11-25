@@ -64,6 +64,12 @@ public sealed class AICompletionContext
     public string[] AgentNames { get; set; }
 
     /// <summary>
+    /// Gets or sets the name of the agent profile this request runs, when it runs an agent directly. That agent is
+    /// never offered to itself, even when it is always available or its own <see cref="AgentNames"/> list it.
+    /// </summary>
+    public string RunningAgentName { get; set; }
+
+    /// <summary>
     /// Gets or sets the configured tool instance names available to this request. Each name refers to an
     /// <c>AIToolInstance</c> that binds a developer-defined tool source to user-provided settings and is
     /// surfaced to the model as a distinct function.

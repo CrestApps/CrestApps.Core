@@ -61,6 +61,12 @@ internal sealed class AgentToolRegistryProvider : IToolRegistryProvider
                 continue;
             }
 
+            // An agent run directly is never offered to itself, even when it is always available or listed in its own AgentNames.
+            if (string.Equals(agent.Name, context?.RunningAgentName, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
             var isAlwaysAvailable = agent.TryGet<AgentMetadata>(out var agentMetadata)
                 && agentMetadata.Availability == AgentAvailability.AlwaysAvailable;
 

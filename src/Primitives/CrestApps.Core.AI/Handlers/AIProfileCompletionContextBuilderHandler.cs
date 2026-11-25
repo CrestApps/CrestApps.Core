@@ -76,6 +76,11 @@ internal sealed class AIProfileCompletionContextBuilderHandler : IAICompletionCo
             }
         }
 
+        if (profile.Type == AIProfileType.Agent)
+        {
+            context.Context.RunningAgentName = profile.Name;
+        }
+
         if (profile.TryGet<AgentInvocationMetadata>(out var agentInvocationMetadata))
         {
             context.Context.AgentNames = agentInvocationMetadata.Names;
