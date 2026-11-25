@@ -3,6 +3,7 @@ using CrestApps.Core.AI.A2A.Models;
 using CrestApps.Core.AI.A2A.Services;
 using CrestApps.Core.AI.Extensions;
 using CrestApps.Core.AI.Models;
+using CrestApps.Core.AI.Orchestration;
 using CrestApps.Core.AI.Profiles;
 using CrestApps.Core.AI.Speech;
 using CrestApps.Core.Services;
@@ -94,10 +95,17 @@ internal sealed class FindAgentForTaskFunction : AIFunction
         {
             var profileManager = arguments.Services.GetRequiredService<IAIProfileManager>();
             var localProfiles = await profileManager.GetAsync(AIProfileType.Agent, cancellationToken);
+            var runningAgentName = AIInvocationScope.Current?.CompletionContext?.RunningAgentName;
             if (localProfiles is not null)
             {
                 foreach (var profile in localProfiles)
                 {
+                    // An agent run directly is never suggested to itself, matching AgentToolRegistryProvider.
+                    if (runningAgentName is not null && string.Equals(profile.Name, runningAgentName, StringComparison.OrdinalIgnoreCase))
+                    {
+                        continue;
+                    }
+
                     var text = (profile.DisplayText ?? profile.Name) + ' ' + profile.Description;
                     var score = ScoreRelevance(queryTokens, tokenizer.Tokenize(text));
                     scoredAgents.Add((new { name = profile.DisplayText ?? profile.Name, id = profile.Name, description = profile.Description, source = "local", relevanceScore = Math.Round(score, 3), }, score));

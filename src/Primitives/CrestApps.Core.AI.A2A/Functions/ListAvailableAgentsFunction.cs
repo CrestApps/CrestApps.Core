@@ -2,6 +2,7 @@ using System.Text.Json;
 using CrestApps.Core.AI.A2A.Models;
 using CrestApps.Core.AI.A2A.Services;
 using CrestApps.Core.AI.Models;
+using CrestApps.Core.AI.Orchestration;
 using CrestApps.Core.AI.Profiles;
 using CrestApps.Core.Services;
 using Microsoft.Extensions.AI;
@@ -56,10 +57,17 @@ internal sealed class ListAvailableAgentsFunction : AIFunction
         {
             var profileManager = arguments.Services.GetRequiredService<IAIProfileManager>();
             var localProfiles = await profileManager.GetAsync(AIProfileType.Agent, cancellationToken);
+            var runningAgentName = AIInvocationScope.Current?.CompletionContext?.RunningAgentName;
             if (localProfiles is not null)
             {
                 foreach (var profile in localProfiles)
                 {
+                    // An agent run directly is never listed to itself, matching AgentToolRegistryProvider.
+                    if (runningAgentName is not null && string.Equals(profile.Name, runningAgentName, StringComparison.OrdinalIgnoreCase))
+                    {
+                        continue;
+                    }
+
                     agents.Add(new { name = profile.DisplayText ?? profile.Name, id = profile.Name, description = profile.Description, source = "local", });
                 }
             }

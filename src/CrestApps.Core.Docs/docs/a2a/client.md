@@ -341,7 +341,7 @@ The A2A client registers three system tools that help the AI model discover avai
 
 ### `ListAvailableAgentsFunction`
 
-Lists **all** available agents — both local AI Agent profiles and remote agents from A2A connections.
+Lists **all** available agents — both local AI Agent profiles and remote agents from A2A connections. When an agent profile runs directly, that agent is left out of the list (see `AICompletionContext.RunningAgentName`).
 
 - **Tool name**: `listAvailableAgents`
 - **Parameters**: None
@@ -359,7 +359,7 @@ AI Model: "What agents are available?"
 
 ### `FindAgentForTaskFunction`
 
-Finds the most relevant agents for a given task using keyword and semantic matching.
+Finds the most relevant agents for a given task using keyword and semantic matching. When an agent profile runs directly, that agent is never suggested to itself.
 
 - **Tool name**: `findAgentForTask`
 - **Parameters**:

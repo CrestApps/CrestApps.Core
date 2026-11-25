@@ -235,6 +235,8 @@ The `Names` array maps to agent profile names. At orchestration time, the `Agent
 
 `AlwaysAvailable` agents do **not** need to be listed here — they are included automatically regardless of `AgentInvocationMetadata`.
 
+An agent is never offered to itself. When a request runs an agent profile directly, `AICompletionContext.RunningAgentName` names it, and `AgentToolRegistryProvider`, the system message enrichment and the A2A `listAvailableAgents` and `findAgentForTask` tools all leave that agent out, even when it is `AlwaysAvailable` or its own `AgentInvocationMetadata` lists it.
+
 ## Agent Execution Flow
 
 When the primary model invokes an agent tool, the following sequence occurs inside `AgentProxyTool`:

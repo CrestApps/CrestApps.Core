@@ -1771,7 +1771,12 @@ else if (_model != null)
             .ToArray();
     }
 
-    // Whether the agent is the profile with that id. A new profile has no id yet, so no agent is it.
+    /// <summary>
+    /// Determines whether the agent is the profile with the given id. A new profile has no id yet, so no agent is it.
+    /// </summary>
+    /// <param name="agent">The agent profile to check.</param>
+    /// <param name="profileItemId">The id of the profile being edited, or <see langword="null"/> for a new profile.</param>
+    /// <returns><see langword="true"/> when the agent is that profile; otherwise <see langword="false"/>.</returns>
     private static bool IsProfile(AIProfile agent, string profileItemId)
     {
         return !string.IsNullOrEmpty(profileItemId) &&
