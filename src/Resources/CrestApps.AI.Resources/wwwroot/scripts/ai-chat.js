@@ -355,6 +355,7 @@
 				result: call.result || "",
 				status: normalizeToolCallStatus(call.status),
 				interruptId: call.interruptId || call.approvalRequestId || null,
+				needsNoApproval: call.needsNoApproval === true,
 				agentName: call.agentName || "",
 				agentDisplayText: call.agentDisplayText || "",
 				agentCallId: call.agentCallId || ""
@@ -409,7 +410,7 @@
 				let state = defaultConfig.aguiRunningLabel;
 				if (status === "completed" || status === "approved") {
 					icon = "fa-solid fa-check";
-					state = status === "approved" ? defaultConfig.aguiAllowedLabel : "";
+					state = status === "approved" && !call.needsNoApproval ? defaultConfig.aguiAllowedLabel : "";
 				} else if (status === "rejected") {
 					icon = "fa-solid fa-ban";
 					state = defaultConfig.aguiDeniedLabel;

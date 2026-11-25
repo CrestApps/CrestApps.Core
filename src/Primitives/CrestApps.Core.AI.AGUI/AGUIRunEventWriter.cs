@@ -3,6 +3,7 @@ using System.Text.Json.Nodes;
 using AGUI.Abstractions;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Orchestration;
+using CrestApps.Core.AI.Tooling;
 using Microsoft.Extensions.AI;
 
 namespace CrestApps.Core.AI.AGUI;
@@ -403,6 +404,10 @@ public sealed class AGUIRunEventWriter
                 break;
 
 #pragma warning disable MEAI001 // Tool approvals are a preview API of Microsoft.Extensions.AI.
+            case ToolApprovalRequestContent approval when approval.ToolCall is FunctionCallContent approvalCall && ToolApprovalRequests.NeedsNoApproval(approval):
+                await WriteCallThatNeedsNoApprovalAsync(approval.RequestId, approvalCall, messageId, cancellationToken);
+                break;
+
             case ToolApprovalRequestContent approval when approval.ToolCall is FunctionCallContent approvalCall:
                 await WriteApprovalRequestAsync(
                     approval.RequestId,
@@ -513,6 +518,27 @@ public sealed class AGUIRunEventWriter
             : ChatTurnToolCallStatus.Requested;
 
         await StartToolCallAsync(call, messageId, status, approvalRequestId: null, cancellationToken);
+    }
+
+    /// <summary>
+    /// Writes a tool call that needs no approval of its own, which came as an approval request only because another
+    /// call of its round waits for one. No interrupt asks about it: the call shows as running, and the run that resumes
+    /// approves it, whatever the person answers about the other call.
+    /// </summary>
+    /// <param name="requestId">The id of the approval request, which the run that resumes answers.</param>
+    /// <param name="call">The tool call.</param>
+    /// <param name="messageId">The id of the assistant message.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>A task that completes when the events are written.</returns>
+    private async ValueTask WriteCallThatNeedsNoApprovalAsync(string requestId, FunctionCallContent call, string messageId, CancellationToken cancellationToken)
+    {
+        if (!_toolCallsById.TryGetValue(call.CallId, out var record))
+        {
+            record = await StartToolCallAsync(call, messageId, ChatTurnToolCallStatus.Requested, requestId, cancellationToken);
+        }
+
+        record.ApprovalRequestId = requestId;
+        record.NeedsNoApproval = true;
     }
 
     /// <summary>

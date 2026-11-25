@@ -43,6 +43,14 @@ public sealed class ChatTurnToolCall
     public string ApprovalRequestId { get; set; }
 
     /// <summary>
+    /// Gets or sets a value indicating whether the call needs no approval of its own. Such a call waits only because
+    /// another call of its round waits for an approval: once one call of a round requires an approval, every call of
+    /// the round is asked about. No approval request is shown for it, and the run that resumes approves it, whatever
+    /// the person answered about the other call, because alone in its round it would have run.
+    /// </summary>
+    public bool NeedsNoApproval { get; set; }
+
+    /// <summary>
     /// Gets or sets the name of the agent that made the call, when the call is one an agent the assistant
     /// delegated to made, and that waits or waited for an approval. It is <see langword="null"/> for a call the
     /// assistant made itself.

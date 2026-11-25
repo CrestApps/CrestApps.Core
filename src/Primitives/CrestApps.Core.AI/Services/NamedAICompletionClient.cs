@@ -174,6 +174,11 @@ public abstract class NamedAICompletionClient : AICompletionServiceBase, IAIComp
 
             var response = await chatClient.GetResponseAsync(prompts, chatOptions, cancellationToken);
 
+            foreach (var message in response.Messages)
+            {
+                ToolApprovalRequests.MarkCallsThatNeedNoApproval(message.Contents, chatOptions.Tools);
+            }
+
             ProcessChatResponse(response, prompts);
 
             return response;
@@ -240,6 +245,7 @@ public abstract class NamedAICompletionClient : AICompletionServiceBase, IAIComp
                     new KeyValuePair<string, object>(AITelemetry.ClientTag, ClientName));
             }
 
+            ToolApprovalRequests.MarkCallsThatNeedNoApproval(update.Contents, chatOptions.Tools);
             ProcessChatResponseUpdate(update, prompts);
 
             yield return update;

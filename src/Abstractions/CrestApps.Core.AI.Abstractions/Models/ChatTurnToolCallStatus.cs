@@ -21,7 +21,8 @@ public enum ChatTurnToolCallStatus
     AwaitingApproval,
 
     /// <summary>
-    /// A person approved the call, and the run that resumed made it.
+    /// The call was approved, and the run that resumed made it. A person approved it, or, for a call that needs no
+    /// approval of its own (see <see cref="ChatTurnToolCall.NeedsNoApproval"/>), the run that resumed did.
     /// </summary>
     Approved,
 

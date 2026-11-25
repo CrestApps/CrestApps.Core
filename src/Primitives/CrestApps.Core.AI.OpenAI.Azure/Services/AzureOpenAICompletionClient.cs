@@ -176,7 +176,7 @@ public sealed partial class AzureOpenAICompletionClient : AICompletionServiceBas
                 // requests instead of results and resumes with the answers. The tool does not run.
                 if (RequiresApproval(data.Value.ToolCalls, allFunctions))
                 {
-                    toolMessages.Add(CreateApprovalRequestMessage(data.Value.ToolCalls));
+                    toolMessages.Add(CreateApprovalRequestMessage(data.Value.ToolCalls, allFunctions));
 
                     return CreateToolTurnResponse(toolMessages, data.Value, usage);
                 }
@@ -417,7 +417,7 @@ public sealed partial class AzureOpenAICompletionClient : AICompletionServiceBas
                     {
                         yield return new Microsoft.Extensions.AI.ChatResponseUpdate(
                             Microsoft.Extensions.AI.ChatRole.Assistant,
-                            CreateApprovalRequests(toolCalls))
+                            CreateApprovalRequests(toolCalls, allFunctions))
                         {
                             ResponseId = update.CompletionId,
                             ModelId = update.Model,
@@ -758,25 +758,32 @@ omit optional fields, or split the operation into multiple smaller calls.
 
     /// <summary>
     /// Creates the approval requests for a round of tool calls that waits for a person: one for each call, as the
-    /// function-invoking chat client asks for them, so a resumed run answers them the same way.
+    /// function-invoking chat client asks for them, so a resumed run answers them the same way. A call to a function
+    /// that requires no approval is marked (see <see cref="ToolApprovalRequests"/>), so the person is not asked about it.
     /// </summary>
     /// <param name="toolCalls">The tool calls.</param>
+    /// <param name="functions">The functions the request offers.</param>
     /// <returns>The approval requests.</returns>
-    private static List<Microsoft.Extensions.AI.AIContent> CreateApprovalRequests(IEnumerable<ChatToolCall> toolCalls)
+    private static List<Microsoft.Extensions.AI.AIContent> CreateApprovalRequests(IEnumerable<ChatToolCall> toolCalls, IEnumerable<Microsoft.Extensions.AI.AIFunction> functions)
     {
-        return toolCalls
+        var requests = toolCalls
             .Select(call => (Microsoft.Extensions.AI.AIContent)new Microsoft.Extensions.AI.ToolApprovalRequestContent($"ficc_{call.Id}", ToFunctionCallContent(call)))
             .ToList();
+
+        ToolApprovalRequests.MarkCallsThatNeedNoApproval(requests, functions);
+
+        return requests;
     }
 
     /// <summary>
     /// Creates the assistant message that asks for a person's approval of each call of a round of tool calls.
     /// </summary>
     /// <param name="toolCalls">The tool calls.</param>
+    /// <param name="functions">The functions the request offers.</param>
     /// <returns>The message.</returns>
-    private static Microsoft.Extensions.AI.ChatMessage CreateApprovalRequestMessage(IEnumerable<ChatToolCall> toolCalls)
+    private static Microsoft.Extensions.AI.ChatMessage CreateApprovalRequestMessage(IEnumerable<ChatToolCall> toolCalls, IEnumerable<Microsoft.Extensions.AI.AIFunction> functions)
     {
-        return new Microsoft.Extensions.AI.ChatMessage(Microsoft.Extensions.AI.ChatRole.Assistant, CreateApprovalRequests(toolCalls));
+        return new Microsoft.Extensions.AI.ChatMessage(Microsoft.Extensions.AI.ChatRole.Assistant, CreateApprovalRequests(toolCalls, functions));
     }
 
     /// <summary>

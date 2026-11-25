@@ -3,6 +3,7 @@ using System.Text.Json.Nodes;
 using AGUI.Abstractions;
 using CrestApps.Core.AI.AGUI;
 using CrestApps.Core.AI.Models;
+using CrestApps.Core.AI.Tooling;
 using Microsoft.Extensions.AI;
 
 #pragma warning disable MEAI001 // Tool approvals are a preview API of Microsoft.Extensions.AI.
@@ -82,6 +83,38 @@ public sealed class AGUIRunEventWriterTests
         Assert.Equal("c2", interrupt.ToolCallId);
         Assert.Equal(InterruptReasons.ToolCall, interrupt.Reason);
         Assert.Equal("delete_item", interrupt.Metadata.Value.GetProperty("toolName").GetString());
+    }
+
+    [Fact]
+    public async Task WriteUpdateAsync_AsksOnlyAboutTheCallThatRequiresApproval_InARoundWithACallThatNeedsNone()
+    {
+        var events = new List<BaseEvent>();
+        var writer = CreateWriter(events);
+        var listRequest = new ToolApprovalRequestContent("approval-list", new FunctionCallContent("c1", "list_items"));
+        var deleteRequest = new ToolApprovalRequestContent("approval-delete", new FunctionCallContent("c2", "delete_item", new Dictionary<string, object> { ["id"] = "42" }));
+
+        ToolApprovalRequests.MarkCallsThatNeedNoApproval(
+            [listRequest, deleteRequest],
+            [AIFunctionFactory.Create(() => "Items: 42", "list_items"), new ApprovalRequiredAIFunction(AIFunctionFactory.Create(() => "Deleted.", "delete_item"))]);
+
+        await writer.WriteUpdateAsync(new ChatResponseUpdate(ChatRole.Assistant, [listRequest, deleteRequest]), "m1", TestContext.Current.CancellationToken);
+        await writer.FinishAsync(TestContext.Current.CancellationToken);
+
+        // Both calls show, but only the call that requires an approval is asked about.
+        Assert.Equal(["c1", "c2"], events.OfType<ToolCallStartEvent>().Select(start => start.ToolCallId));
+
+        var outcome = Assert.IsType<RunFinishedInterruptOutcome>(Assert.IsType<RunFinishedEvent>(events[^1]).Outcome);
+        Assert.Equal("approval-delete", Assert.Single(outcome.Interrupts).Id);
+
+        // The other call shows as running, and is kept with its request id for the run that resumes to approve it.
+        var list = writer.ToolCalls[0];
+        Assert.Equal(ChatTurnToolCallStatus.Requested, list.Status);
+        Assert.True(list.NeedsNoApproval);
+        Assert.Equal("approval-list", list.ApprovalRequestId);
+
+        var delete = writer.ToolCalls[1];
+        Assert.Equal(ChatTurnToolCallStatus.AwaitingApproval, delete.Status);
+        Assert.False(delete.NeedsNoApproval);
     }
 
     [Fact]
