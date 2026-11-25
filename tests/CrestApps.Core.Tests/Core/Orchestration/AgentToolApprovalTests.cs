@@ -255,10 +255,9 @@ public sealed class AgentToolApprovalTests
     }
 
     [Theory]
-    [InlineData(true, true, 1, 1)]
-    [InlineData(true, false, 1, 0)]
-    [InlineData(false, true, 0, 1)]
-    public async Task ACallThatNeedsNoApproval_InTheSameRoundAsOneThatDoes_WaitsForItsOwnAnswer(bool approveList, bool approveDelete, int expectedLists, int expectedDeletes)
+    [InlineData(true, 1)]
+    [InlineData(false, 0)]
+    public async Task ACallThatNeedsNoApproval_InTheSameRoundAsOneThatDoes_RunsWithoutBeingAskedAbout(bool approveDelete, int expectedDeletes)
     {
         using var harness = new AgentApprovalTestHarness();
         harness.Model.ListsAndDeletesInOneRound = true;
@@ -266,21 +265,98 @@ public sealed class AgentToolApprovalTests
         var paused = await RunFirstTurnAsync(harness);
 
         // Microsoft.Extensions.AI's function-invoking chat client asks for an approval of every call of a round once
-        // one of them requires an approval. So list_items, which needs none, waits too: each call gets a card of its
-        // own, and nothing runs before the person answers.
+        // one of them requires an approval. Only delete_item requires one, so only delete_item gets a card; list_items
+        // waits for the answer, and nothing runs before the person answers.
         var outcome = Assert.IsType<RunFinishedInterruptOutcome>(Assert.IsType<RunFinishedEvent>(paused.Events[^1]).Outcome);
 
-        Assert.Equal(
-            [AgentApprovalTestHarness.ListItemsTool.TheName, DeleteToolName],
-            outcome.Interrupts.Select(GetToolName));
+        Assert.Equal([DeleteToolName], outcome.Interrupts.Select(GetToolName));
         Assert.Equal(0, harness.ListTool.CallCount);
         Assert.Equal(0, harness.DeleteTool.CallCount);
 
-        await ResumeAsync(harness, paused, interrupt => GetToolName(interrupt) == DeleteToolName ? approveDelete : approveList);
+        // The stored message has no card for list_items either, so a reload while paused shows none.
+        var list = Assert.Single(paused.Activity.AgentRuns).ToolCalls.Single(call => call.CallId == AgentApprovalTestHarness.ListCallId);
 
-        // Each answer decides its own call, and an approved call runs once.
-        Assert.Equal(expectedLists, harness.ListTool.CallCount);
+        Assert.Equal(ChatTurnToolCallStatus.Requested, list.Status);
+        Assert.True(list.NeedsNoApproval);
+        Assert.DoesNotContain(paused.Activity.ToolCalls, call => call.Name == AgentApprovalTestHarness.ListItemsTool.TheName);
+
+        await ResumeAsync(harness, paused, approved: approveDelete);
+
+        // list_items runs once, whatever the person answered: alone in its round, it would have run. The answer
+        // decides delete_item.
+        Assert.Equal(1, harness.ListTool.CallCount);
         Assert.Equal(expectedDeletes, harness.DeleteTool.CallCount);
+    }
+
+    [Theory]
+    [InlineData(true, 1)]
+    [InlineData(false, 0)]
+    public async Task ACallThatNeedsNoApproval_InTheAssistantsOwnRound_RunsWithoutBeingAskedAbout(bool approveDelete, int expectedDeletes)
+    {
+        using var harness = new AgentApprovalTestHarness { AssistantRunsTheTools = true };
+        harness.Model.ListsAndDeletesInOneRound = true;
+
+        var paused = await RunFirstTurnAsync(harness);
+
+        // The assistant's own round: only delete_item is asked about.
+        var outcome = Assert.IsType<RunFinishedInterruptOutcome>(Assert.IsType<RunFinishedEvent>(paused.Events[^1]).Outcome);
+
+        Assert.Equal([DeleteToolName], outcome.Interrupts.Select(GetToolName));
+        Assert.Equal(0, harness.ListTool.CallCount);
+        Assert.Equal(0, harness.DeleteTool.CallCount);
+
+        // list_items is stored as running, without a card, so a reload while paused shows none.
+        var list = paused.Activity.ToolCalls.Single(call => call.CallId == AgentApprovalTestHarness.ListCallId);
+
+        Assert.Equal(ChatTurnToolCallStatus.Requested, list.Status);
+        Assert.True(list.NeedsNoApproval);
+
+        await ResumeAsync(harness, paused, approved: approveDelete);
+
+        // The resume approved list_items itself, and it ran once; the person's answer decided delete_item.
+        Assert.Equal(1, harness.ListTool.CallCount);
+        Assert.Equal(expectedDeletes, harness.DeleteTool.CallCount);
+        Assert.Equal(ChatTurnToolCallStatus.Approved, list.Status);
+        Assert.Equal(
+            approveDelete ? ChatTurnToolCallStatus.Approved : ChatTurnToolCallStatus.Rejected,
+            paused.Activity.ToolCalls.Single(call => call.CallId == AgentApprovalTestHarness.DeleteCallId).Status);
+    }
+
+    [Fact]
+    public void TheResume_ApprovesACallThatNeedsNoApproval_WhateverTheClientSends()
+    {
+        var activity = new ChatTurnToolActivity
+        {
+            ToolCalls =
+            [
+                new ChatTurnToolCall { CallId = "list-1", Name = AgentApprovalTestHarness.ListItemsTool.TheName, Arguments = "{}", Status = ChatTurnToolCallStatus.Requested, ApprovalRequestId = "ficc_list-1", NeedsNoApproval = true },
+                new ChatTurnToolCall { CallId = "delete-1", Name = DeleteToolName, Arguments = "{}", Status = ChatTurnToolCallStatus.AwaitingApproval, ApprovalRequestId = "ficc_delete-1" },
+            ],
+        };
+        var history = new List<ChatMessage>();
+        var rejectedCallIds = new HashSet<string>();
+        using var scope = AIInvocationScope.Begin();
+
+        // The client denies delete_item, and also sends a denial for list_items, which it was never asked about.
+        ChatTurnResume.Apply(
+            activity,
+            CreateResumeRequest(new Dictionary<string, bool> { ["ficc_list-1"] = false, ["ficc_delete-1"] = false }),
+            history,
+            rejectedCallIds,
+            scope.Context);
+
+        Assert.Equal([ChatTurnToolCallStatus.Approved, ChatTurnToolCallStatus.Rejected], activity.ToolCalls.Select(call => call.Status));
+        Assert.Equal(["delete-1"], rejectedCallIds);
+        Assert.Equal(
+            [("ficc_list-1", true), ("ficc_delete-1", false)],
+            history[^1].Contents.OfType<ToolApprovalResponseContent>().Select(response => (response.RequestId, response.Approved)));
+
+        // Once list_items ran, the answers stand: answering again could run it twice.
+        Assert.False(ChatTurnResume.HaveApprovedCallsStarted(activity, [], scope.Context));
+        Assert.True(ChatTurnResume.HaveApprovedCallsStarted(
+            activity,
+            [new ChatTurnToolCall { CallId = "list-1", Status = ChatTurnToolCallStatus.Completed, Result = "Items: 7, 8" }],
+            scope.Context));
     }
 
     [Fact]

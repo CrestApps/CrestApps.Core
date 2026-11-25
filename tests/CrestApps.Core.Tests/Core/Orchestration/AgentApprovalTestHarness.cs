@@ -152,6 +152,12 @@ internal sealed class AgentApprovalTestHarness : IDisposable
     public bool AssistantRunsToolsWithoutAsking { get; set; }
 
     /// <summary>
+    /// Gets or sets a value indicating whether the assistant lists and deletes the items with tools of its own, as the
+    /// agent does, instead of delegating to the agent. Its model then answers the way the agent's does.
+    /// </summary>
+    public bool AssistantRunsTheTools { get; set; }
+
+    /// <summary>
     /// Creates the approval policy of a profile set to run every tool kind that requires an approval without asking.
     /// </summary>
     /// <returns>The policy.</returns>
@@ -177,6 +183,12 @@ internal sealed class AgentApprovalTestHarness : IDisposable
             ChatDeploymentName = "chat",
             AgentNames = [AgentName],
         };
+
+        if (AssistantRunsTheTools)
+        {
+            completionContext.AgentNames = [];
+            completionContext.ToolNames = [ListItemsTool.TheName, DeleteItemTool.TheName];
+        }
 
         if (supportsApproval)
         {

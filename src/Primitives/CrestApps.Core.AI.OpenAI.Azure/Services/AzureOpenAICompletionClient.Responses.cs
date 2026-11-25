@@ -36,8 +36,15 @@ public sealed partial class AzureOpenAICompletionClient
         try
         {
             var chatClient = await CreateResponsesChatClientAsync(deployment);
+            var chatOptions = GetResponsesOptions(context, requestOptions);
+            var response = await chatClient.GetResponseAsync(GetResponsesPrompts(messages, context), chatOptions, cancellationToken);
 
-            return await chatClient.GetResponseAsync(GetResponsesPrompts(messages, context), GetResponsesOptions(context, requestOptions), cancellationToken);
+            foreach (var message in response.Messages)
+            {
+                ToolApprovalRequests.MarkCallsThatNeedNoApproval(message.Contents, chatOptions.Tools);
+            }
+
+            return response;
         }
         catch (OperationCanceledException)
         {
@@ -54,11 +61,12 @@ public sealed partial class AzureOpenAICompletionClient
     private async IAsyncEnumerable<ChatResponseUpdate> CompleteStreamingWithResponsesApiAsync(IEnumerable<ChatMessage> messages, AICompletionContext context, AIDeployment deployment, AIProviderConnectionEntry connection, AzureRequestOptions requestOptions, [EnumeratorCancellation] CancellationToken cancellationToken)
     {
         var chatClient = await CreateResponsesChatClientAsync(deployment);
+        var chatOptions = GetResponsesOptions(context, requestOptions);
         var startTimestamp = Stopwatch.GetTimestamp();
         var receivedText = false;
 
         await using var updates = chatClient
-            .GetStreamingResponseAsync(GetResponsesPrompts(messages, context), GetResponsesOptions(context, requestOptions), cancellationToken)
+            .GetStreamingResponseAsync(GetResponsesPrompts(messages, context), chatOptions, cancellationToken)
             .GetAsyncEnumerator(cancellationToken);
 
         while (true)
@@ -89,6 +97,8 @@ public sealed partial class AzureOpenAICompletionClient
                     Stopwatch.GetElapsedTime(startTimestamp).TotalSeconds,
                     new KeyValuePair<string, object>(AITelemetry.ClientTag, ClientName));
             }
+
+            ToolApprovalRequests.MarkCallsThatNeedNoApproval(updates.Current.Contents, chatOptions.Tools);
 
             yield return updates.Current;
         }

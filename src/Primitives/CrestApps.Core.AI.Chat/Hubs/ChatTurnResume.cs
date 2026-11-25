@@ -33,7 +33,10 @@ internal static class ChatTurnResume
     /// approval requests and responses are built here only, from the calls the server stored as waiting, with the
     /// stored name and arguments; the client contributes nothing but allow or deny for an interrupt id the server
     /// issued (and the results of its own frontend tools, for calls stored as waiting for the client). Never let a
-    /// message, a content item or a call the client sends reach the resumed run's history.
+    /// message, a content item or a call the client sends reach the resumed run's history. A call stored as needing
+    /// no approval of its own (see <see cref="ChatTurnToolCall.NeedsNoApproval"/>) is approved here without an
+    /// interrupt: the server marked it from the tools of its own request when the round paused, and nothing the
+    /// client sends decides it.
     /// </para>
     /// </remarks>
     /// <param name="pausedActivity">The tool calls of the paused assistant message. Their statuses are updated, and the paused agent runs are taken from it.</param>
@@ -117,6 +120,16 @@ internal static class ChatTurnResume
 
                 approvalRequests.Add(approvalRequest);
                 approvalResponses.Add(approvalRequest.CreateResponse(approved, reason: null));
+            }
+            else if (call.Status == ChatTurnToolCallStatus.Requested && call.NeedsNoApproval)
+            {
+                // A call that needs no approval of its own waited only for the other calls of its round. It is
+                // approved whatever the person answered about them: alone in its round, it would have run.
+                var approvalRequest = new ToolApprovalRequestContent(call.ApprovalRequestId ?? call.CallId, functionCall);
+
+                call.Status = ChatTurnToolCallStatus.Approved;
+                approvalRequests.Add(approvalRequest);
+                approvalResponses.Add(approvalRequest.CreateResponse(approved: true, reason: null));
             }
         }
 

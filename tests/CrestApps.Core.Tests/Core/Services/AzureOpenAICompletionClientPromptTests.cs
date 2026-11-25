@@ -941,11 +941,15 @@ public sealed class AzureOpenAICompletionClientPromptTests
 
     /// <summary>
     /// Verifies a round of tool calls in which one call requires an approval asks for an approval of every call of
-    /// the round, as the function-invoking chat client does, so no call runs before a person answers; and that on
-    /// resume each answer decides its own call.
+    /// the round, as the function-invoking chat client does, so no call runs before a person answers, and marks the
+    /// call that needs none, so the person is asked only about the other. On resume, the call that needs none runs
+    /// once whatever the person answered about the other, which the person's answer decides.
     /// </summary>
-    [Fact]
-    public async Task NonStreaming_ARoundWithACallThatRequiresApproval_AsksForEachCall_AndEachAnswerDecidesItsOwnCall()
+    /// <param name="approveAgent">Whether the person allows the call that requires an approval.</param>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task NonStreaming_ARoundWithACallThatRequiresApproval_MarksTheCallThatNeedsNone_AndRunsItOnResume(bool approveAgent)
     {
         var agent = new PausingAgentProbe();
         var listCalls = 0;
@@ -976,6 +980,7 @@ public sealed class AzureOpenAICompletionClientPromptTests
             var requests = paused.Messages.SelectMany(message => message.Contents).OfType<Microsoft.Extensions.AI.ToolApprovalRequestContent>().ToList();
 
             Assert.Equal(["content-agent", "list_items"], requests.Select(request => Assert.IsType<Microsoft.Extensions.AI.FunctionCallContent>(request.ToolCall).Name));
+            Assert.Equal([false, true], requests.Select(ToolApprovalRequests.NeedsNoApproval));
             Assert.Empty(agent.CallIds);
             Assert.Equal(0, listCalls);
             Assert.Equal(1, pausedContext.Handler.RequestCount);
@@ -997,7 +1002,8 @@ public sealed class AzureOpenAICompletionClientPromptTests
             [
                 new AIChatMessage(AIChatRole.User, "List the items and delete item 7."),
                 new AIChatMessage(AIChatRole.Assistant, [agentRequest, listRequest]),
-                new AIChatMessage(AIChatRole.User, [agentRequest.CreateResponse(approved: false, reason: null), listRequest.CreateResponse(approved: true, reason: null)]),
+                // The resume approves list_items itself, whatever the person answered about the agent.
+                new AIChatMessage(AIChatRole.User, [agentRequest.CreateResponse(approved: approveAgent, reason: null), listRequest.CreateResponse(approved: true, reason: null)]),
             ],
             new AICompletionContext
             {
@@ -1005,8 +1011,8 @@ public sealed class AzureOpenAICompletionClientPromptTests
             },
             TestContext.Current.CancellationToken);
 
-        // The person allowed list_items and denied the agent: only list_items ran, once.
-        Assert.Empty(agent.CallIds);
+        // list_items ran once; the agent ran only when the person allowed it.
+        Assert.Equal(approveAgent ? 1 : 0, agent.CallIds.Count);
         Assert.Equal(1, listCalls);
     }
 #pragma warning restore MEAI001

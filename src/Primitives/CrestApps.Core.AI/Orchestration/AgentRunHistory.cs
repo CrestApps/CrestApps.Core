@@ -1,5 +1,6 @@
 using System.Text.Json;
 using CrestApps.Core.AI.Models;
+using CrestApps.Core.AI.Tooling;
 using Microsoft.Extensions.AI;
 
 namespace CrestApps.Core.AI.Orchestration;
@@ -56,8 +57,19 @@ internal static class AgentRunHistory
                 case ToolApprovalRequestContent approval when approval.ToolCall is FunctionCallContent waiting && !string.IsNullOrEmpty(waiting.CallId):
                     var record = GetOrAddCall(run, waiting);
 
-                    record.Status = ChatTurnToolCallStatus.AwaitingApproval;
                     record.ApprovalRequestId = approval.RequestId;
+
+                    // A call that needs no approval of its own waits only for the other calls of its round. Nobody is
+                    // asked about it; the agent runs it when it resumes.
+                    if (ToolApprovalRequests.NeedsNoApproval(approval))
+                    {
+                        record.NeedsNoApproval = true;
+                    }
+                    else
+                    {
+                        record.Status = ChatTurnToolCallStatus.AwaitingApproval;
+                    }
+
                     break;
             }
         }
@@ -65,7 +77,8 @@ internal static class AgentRunHistory
 
     /// <summary>
     /// Builds the conversation an agent continues from after a person answered its approval requests, and marks
-    /// each waiting call of the run as approved or rejected.
+    /// each waiting call of the run as approved or rejected. A call that needs no approval of its own (see
+    /// <see cref="ChatTurnToolCall.NeedsNoApproval"/>) is approved.
     /// </summary>
     /// <param name="task">The task the assistant gave the agent.</param>
     /// <param name="resumption">The paused run and the answers.</param>
@@ -101,13 +114,18 @@ internal static class AgentRunHistory
 
         foreach (var call in run.ToolCalls)
         {
-            if (call.Status != ChatTurnToolCallStatus.AwaitingApproval)
+            // A call that needs no approval of its own waited only for the other calls of its round. It is approved
+            // whatever the person answered about them: alone in its round, it would have run.
+            var waitedForItsRound = call.Status == ChatTurnToolCallStatus.Requested && call.NeedsNoApproval;
+
+            if (call.Status != ChatTurnToolCallStatus.AwaitingApproval && !waitedForItsRound)
             {
                 continue;
             }
 
             var requestId = call.ApprovalRequestId ?? call.CallId;
-            var approved = resumption.Decisions.TryGetValue(AgentToolApprovals.ComposeId(run.CallId, requestId), out var decision) && decision;
+            var approved = waitedForItsRound ||
+                (resumption.Decisions.TryGetValue(AgentToolApprovals.ComposeId(run.CallId, requestId), out var decision) && decision);
             var request = new ToolApprovalRequestContent(requestId, new FunctionCallContent(call.CallId, call.Name, ParseArguments(call.Arguments)));
 
             call.Status = approved

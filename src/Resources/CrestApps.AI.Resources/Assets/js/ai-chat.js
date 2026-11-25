@@ -532,6 +532,9 @@ window.coreAIChatManager = function () {
                 result: call.result || '',
                 status: normalizeToolCallStatus(call.status),
                 interruptId: call.interruptId || call.approvalRequestId || null,
+                // A call that needed no approval of its own: it waited only for another call of its round, and nobody
+                // allowed it.
+                needsNoApproval: call.needsNoApproval === true,
                 // The agent that made the call, when an agent the assistant delegated to made it.
                 agentName: call.agentName || '',
                 // The agent's title, which the person sees; the name is its id.
@@ -651,7 +654,7 @@ window.coreAIChatManager = function () {
 
             if (status === 'completed' || status === 'approved') {
                 icon = 'fa-solid fa-check';
-                state = status === 'approved' ? defaultConfig.aguiAllowedLabel : '';
+                state = status === 'approved' && !call.needsNoApproval ? defaultConfig.aguiAllowedLabel : '';
             } else if (status === 'rejected') {
                 icon = 'fa-solid fa-ban';
                 state = defaultConfig.aguiDeniedLabel;
