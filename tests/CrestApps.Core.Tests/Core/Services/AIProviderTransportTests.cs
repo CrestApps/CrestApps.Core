@@ -11,6 +11,7 @@ using CrestApps.Core.AI.Ollama.Services;
 using CrestApps.Core.AI.OpenAI;
 using CrestApps.Core.AI.OpenAI.Azure;
 using CrestApps.Core.AI.OpenAI.Azure.Models;
+using CrestApps.Core.AI.OpenAI.Azure.Responses;
 using CrestApps.Core.AI.OpenAI.Azure.Services;
 using CrestApps.Core.AI.OpenAI.Services;
 using CrestApps.Core.AI.Services;
@@ -44,6 +45,35 @@ public sealed class AIProviderTransportTests
             }
           ],
           "usage": { "prompt_tokens": 1, "completion_tokens": 1, "total_tokens": 2 }
+        }
+        """;
+
+    private const string ResponsesApiResponse = """
+        {
+          "id": "resp_test",
+          "object": "response",
+          "created_at": 1710000000,
+          "status": "completed",
+          "model": "test-model",
+          "output": [
+            {
+              "type": "message",
+              "id": "msg_test",
+              "status": "completed",
+              "role": "assistant",
+              "content": [ { "type": "output_text", "text": "done", "annotations": [] } ]
+            }
+          ],
+          "parallel_tool_calls": true,
+          "tool_choice": "auto",
+          "tools": [],
+          "usage": {
+            "input_tokens": 1,
+            "input_tokens_details": { "cached_tokens": 0 },
+            "output_tokens": 1,
+            "output_tokens_details": { "reasoning_tokens": 0 },
+            "total_tokens": 2
+          }
         }
         """;
 
@@ -85,6 +115,29 @@ public sealed class AIProviderTransportTests
 
         Assert.Equal("done", response.Text);
         Assert.Equal("unit.test", Assert.Single(handler.RequestUris).Host);
+    }
+
+    [Fact]
+    public async Task AzureOpenAI_SendsResponsesApiRequestsThroughTheHostTransport()
+    {
+        var handler = new RecordingHandler(ResponsesApiResponse);
+        using var services = BuildServices(
+            services => services.AddCoreAIAzureOpenAI(),
+            AzureOpenAIConstants.HttpClientName,
+            handler);
+        var connection = Connection(("Endpoint", "https://unit.test/"), ("AuthenticationType", "ApiKey"), ("ApiKey", "azure-test"));
+        var client = AzureResponsesClientFactory.Create(
+            connection,
+            "test-model",
+            NullLoggerFactory.Instance,
+            new AzureClientOptions { EnableDefaultRetryPolicy = false },
+            services.GetRequiredService<IHttpClientFactory>(),
+            services.GetRequiredService<AIProviderClientCache>());
+
+        var response = await client.GetResponseAsync("Hello", cancellationToken: TestContext.Current.CancellationToken);
+
+        Assert.Equal("done", response.Text);
+        Assert.Equal("https://unit.test/openai/v1/responses", Assert.Single(handler.RequestUris).AbsoluteUri);
     }
 
     [Fact]
@@ -268,6 +321,10 @@ public sealed class AIProviderTransportTests
         Assert.Equal(Timeout.InfiniteTimeSpan, services.GetRequiredService<IHttpClientFactory>().CreateClient(name).Timeout);
         Assert.False(primaryHandler.AllowAutoRedirect);
         Assert.False(primaryHandler.UseCookies);
+
+        // The SDK clients are kept for the life of the container, so their connections must still be retired and
+        // resolved again.
+        Assert.NotEqual(Timeout.InfiniteTimeSpan, primaryHandler.PooledConnectionLifetime);
     }
 
     [Fact]

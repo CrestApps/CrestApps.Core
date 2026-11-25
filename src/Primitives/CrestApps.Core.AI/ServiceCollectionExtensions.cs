@@ -521,13 +521,14 @@ public static class ServiceCollectionExtensions
     }
 
     /// <summary>
-    /// Registers the named <see cref="HttpClient"/> an AI provider's SDK client sends its requests through, set up the
-    /// way the SDKs set up their own: no timeout of its own, because the SDK applies its own network timeout and
-    /// retries, and no redirects or cookies.
+    /// Registers the named <see cref="HttpClient"/> an AI provider's SDK client sends its requests through. It has no
+    /// timeout of its own, because the SDK applies its own network timeout and retries; it does not follow redirects,
+    /// so the provider's API key header is never sent on to the host a redirect names; and it keeps no cookies.
     /// </summary>
     /// <remarks>
-    /// A host gives the provider its own transport by configuring a client of the same name, for example with
-    /// <c>ConfigurePrimaryHttpMessageHandler</c> to check the address of every connection the provider opens.
+    /// A host gives the provider its own transport by configuring a client of the same name after registering the
+    /// provider, for example with <c>ConfigurePrimaryHttpMessageHandler</c> to check the address of every connection
+    /// the provider opens.
     /// </remarks>
     /// <param name="services">The service collection.</param>
     /// <param name="name">The name of the client.</param>

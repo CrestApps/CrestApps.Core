@@ -94,12 +94,15 @@ builder.Services
     });
 ```
 
-The providers register these clients the way the SDKs set up their own transport: no redirects, no cookies, and no
-`HttpClient.Timeout`, because the SDK applies its own network timeout and retries. The Claude client also decompresses
-responses, like the Anthropic SDK's own client, and the Ollama client keeps the default `HttpClient` it always used. A
-primary handler you supply replaces theirs, so give it the same settings. Keep `PooledConnectionLifetime` set: the SDK
-clients live as long as the container, and a connection is only opened again, and resolved again, when the pool
-retires it.
+The providers register these clients with no `HttpClient.Timeout`, because the SDK applies its own network timeout
+and retries. They do not follow redirects, so a provider's API key header is never sent on to the host a redirect
+names, and they keep no cookies. The Claude client also decompresses responses, as the Anthropic SDK's own client does.
+The Ollama client keeps the default `HttpClient` it always used.
+
+Configure the client after registering the provider, so a primary handler you supply replaces theirs, and give it the
+same settings. Keep `PooledConnectionLifetime` set: the SDK clients live as long as the container, and a connection is
+only opened again, and its host name resolved again, when the pool retires it. Each request is also written to the
+standard `HttpClient` logs, under the `System.Net.Http.HttpClient.<name>` categories.
 
 ### One set of clients per container
 
@@ -113,7 +116,8 @@ an old key.
 
 The Copilot CLI makes its own model requests. A host that registers a `CopilotRequestHandler` has them sent through
 it, and so through the `HttpClient` it gives the handler. The request handler is an experimental API of the Copilot SDK
-(`GHCP001`), and WebSocket connections the CLI opens do not go through it.
+(`GHCP001`). WebSocket connections also reach the handler, but it opens them with its own `ClientWebSocket`, not the
+`HttpClient`.
 
 ```csharp
 #pragma warning disable GHCP001 // The request handler API of the Copilot SDK is experimental.
