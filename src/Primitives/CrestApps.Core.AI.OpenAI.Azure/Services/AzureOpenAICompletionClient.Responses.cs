@@ -3,6 +3,7 @@ using System.Runtime.CompilerServices;
 using CrestApps.Core.AI.Completions;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.OpenAI.Services;
+using CrestApps.Core.AI.Orchestration;
 using CrestApps.Core.AI.Services;
 using CrestApps.Core.AI.Tooling;
 using Microsoft.Extensions.AI;
@@ -36,8 +37,11 @@ public sealed partial class AzureOpenAICompletionClient
         try
         {
             var chatClient = await CreateResponsesChatClientAsync(deployment);
+            var response = await chatClient.GetResponseAsync(GetResponsesPrompts(messages, context), GetResponsesOptions(context, requestOptions), cancellationToken);
 
-            return await chatClient.GetResponseAsync(GetResponsesPrompts(messages, context), GetResponsesOptions(context, requestOptions), cancellationToken);
+            ToolApprovalRequests.MarkCallsThatNeedNoApproval(response, requestOptions.Functions);
+
+            return response;
         }
         catch (OperationCanceledException)
         {
@@ -89,6 +93,10 @@ public sealed partial class AzureOpenAICompletionClient
                     Stopwatch.GetElapsedTime(startTimestamp).TotalSeconds,
                     new KeyValuePair<string, object>(AITelemetry.ClientTag, ClientName));
             }
+
+            // The function invocation asks for an approval of every call of a round once one of them requires an
+            // approval; the calls that need none are marked, so only the others are put to a person.
+            ToolApprovalRequests.MarkCallsThatNeedNoApproval(updates.Current.Contents, requestOptions.Functions);
 
             yield return updates.Current;
         }

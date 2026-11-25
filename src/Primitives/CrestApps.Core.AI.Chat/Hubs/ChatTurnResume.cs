@@ -35,6 +35,11 @@ internal static class ChatTurnResume
     /// issued (and the results of its own frontend tools, for calls stored as waiting for the client). Never let a
     /// message, a content item or a call the client sends reach the resumed run's history.
     /// </para>
+    /// <para>
+    /// A call stored as needing no approval (<see cref="ChatTurnToolCall.NeedsNoApproval"/>) is approved here, whatever
+    /// the person answered. Only the server sets that flag, from the tools it offered the model when the round paused,
+    /// and that decision stands even if the tool requires an approval by the time the run resumes.
+    /// </para>
     /// </remarks>
     /// <param name="pausedActivity">The tool calls of the paused assistant message. Their statuses are updated, and the paused agent runs are taken from it.</param>
     /// <param name="request">The run request with the client's answers.</param>
@@ -117,6 +122,16 @@ internal static class ChatTurnResume
 
                 approvalRequests.Add(approvalRequest);
                 approvalResponses.Add(approvalRequest.CreateResponse(approved, reason: null));
+            }
+            else if (call.NeedsNoApproval && call.Status == ChatTurnToolCallStatus.Requested)
+            {
+                // A call whose tool needs no approval, which waited only because its round had a call that does. Nobody
+                // was asked: it runs whatever the person answered to the others, as it would have alone.
+                var approvalRequest = new ToolApprovalRequestContent(call.CallId, functionCall);
+
+                call.Status = ChatTurnToolCallStatus.Approved;
+                approvalRequests.Add(approvalRequest);
+                approvalResponses.Add(approvalRequest.CreateResponse(approved: true, reason: null));
             }
         }
 

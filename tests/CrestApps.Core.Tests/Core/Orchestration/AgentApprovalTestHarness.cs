@@ -176,6 +176,7 @@ internal sealed class AgentApprovalTestHarness : IDisposable
         {
             ChatDeploymentName = "chat",
             AgentNames = [AgentName],
+            ToolNames = Model.AssistantListsAndDeletesInOneRound ? [ListItemsTool.TheName, DeleteItemTool.TheName] : null,
         };
 
         if (supportsApproval)
@@ -267,6 +268,12 @@ internal sealed class AgentApprovalTestHarness : IDisposable
         /// </summary>
         public bool ListsAndDeletesInOneRound { get; set; }
 
+        /// <summary>
+        /// Gets or sets a value indicating whether the assistant has the two tools itself, and lists the items and
+        /// deletes item 7 in one round of tool calls instead of handing the task to the agent.
+        /// </summary>
+        public bool AssistantListsAndDeletesInOneRound { get; set; }
+
         public Task<ChatResponse> GetResponseAsync(IEnumerable<ChatMessage> messages, ChatOptions options = null, CancellationToken cancellationToken = default)
         {
             return Task.FromResult(new ChatResponse(Answer(messages.ToList(), options)));
@@ -312,8 +319,25 @@ internal sealed class AgentApprovalTestHarness : IDisposable
             };
         }
 
-        private static List<AIContent> AnswerAsAssistant(List<ChatMessage> messages)
+        private List<AIContent> AnswerAsAssistant(List<ChatMessage> messages)
         {
+            if (AssistantListsAndDeletesInOneRound)
+            {
+                var listResult = FindResult(messages, ListCallId);
+                var deleteResult = FindResult(messages, DeleteCallId);
+
+                if (listResult is null && deleteResult is null)
+                {
+                    return
+                    [
+                        new FunctionCallContent(ListCallId, ListItemsTool.TheName, new Dictionary<string, object>()),
+                        new FunctionCallContent(DeleteCallId, DeleteItemTool.TheName, new Dictionary<string, object> { ["id"] = 7 }),
+                    ];
+                }
+
+                return [new TextContent($"Listed: {listResult} Deleted: {deleteResult}")];
+            }
+
             var agentResult = FindResult(messages, AgentCallId);
 
             if (agentResult is null)

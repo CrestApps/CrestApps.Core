@@ -255,32 +255,148 @@ public sealed class AgentToolApprovalTests
     }
 
     [Theory]
-    [InlineData(true, true, 1, 1)]
-    [InlineData(true, false, 1, 0)]
-    [InlineData(false, true, 0, 1)]
-    public async Task ACallThatNeedsNoApproval_InTheSameRoundAsOneThatDoes_WaitsForItsOwnAnswer(bool approveList, bool approveDelete, int expectedLists, int expectedDeletes)
+    [InlineData(true, 1)]
+    [InlineData(false, 0)]
+    public async Task ACallThatNeedsNoApproval_InTheSameRoundAsOneThatDoes_InsideAnAgent_RunsOnceWithoutACard(bool approveDelete, int expectedDeletes)
     {
         using var harness = new AgentApprovalTestHarness();
         harness.Model.ListsAndDeletesInOneRound = true;
 
         var paused = await RunFirstTurnAsync(harness);
 
-        // Microsoft.Extensions.AI's function-invoking chat client asks for an approval of every call of a round once
-        // one of them requires an approval. So list_items, which needs none, waits too: each call gets a card of its
-        // own, and nothing runs before the person answers.
+        // Microsoft.Extensions.AI's function-invoking chat client holds back every call of a round once one of them
+        // requires an approval, so nothing runs before the person answers. Only delete_item is put to the person.
         var outcome = Assert.IsType<RunFinishedInterruptOutcome>(Assert.IsType<RunFinishedEvent>(paused.Events[^1]).Outcome);
 
-        Assert.Equal(
-            [AgentApprovalTestHarness.ListItemsTool.TheName, DeleteToolName],
-            outcome.Interrupts.Select(GetToolName));
+        Assert.Equal(DeleteToolName, GetToolName(Assert.Single(outcome.Interrupts)));
         Assert.Equal(0, harness.ListTool.CallCount);
         Assert.Equal(0, harness.DeleteTool.CallCount);
 
-        await ResumeAsync(harness, paused, interrupt => GetToolName(interrupt) == DeleteToolName ? approveDelete : approveList);
+        // The stored message, which a reload shows, has nothing to answer for list_items; the agent's run keeps it to
+        // run on resume.
+        Assert.DoesNotContain(paused.Activity.ToolCalls, call => call.Name == AgentApprovalTestHarness.ListItemsTool.TheName);
 
-        // Each answer decides its own call, and an approved call runs once.
-        Assert.Equal(expectedLists, harness.ListTool.CallCount);
+        var listCall = Assert.Single(Assert.Single(paused.Activity.AgentRuns).ToolCalls, call => call.CallId == AgentApprovalTestHarness.ListCallId);
+        Assert.Equal(ChatTurnToolCallStatus.Requested, listCall.Status);
+        Assert.True(listCall.NeedsNoApproval);
+
+        var resumed = await ResumeAsync(harness, paused, approveDelete);
+
+        // list_items ran once whatever the person answered, as it would have alone; the answer decided delete_item.
+        Assert.Equal(1, harness.ListTool.CallCount);
         Assert.Equal(expectedDeletes, harness.DeleteTool.CallCount);
+        Assert.Equal("Items: 7, 8", FindResult(harness.Model.AgentRequests[^1], AgentApprovalTestHarness.ListCallId));
+        Assert.IsType<RunFinishedSuccessOutcome>(Assert.IsType<RunFinishedEvent>(resumed.Events[^1]).Outcome);
+    }
+
+    [Theory]
+    [InlineData(true, 1)]
+    [InlineData(false, 0)]
+    public async Task ACallThatNeedsNoApproval_InTheSameRoundAsOneThatDoes_RunsOnceWithoutACard(bool approveDelete, int expectedDeletes)
+    {
+        using var harness = new AgentApprovalTestHarness();
+        harness.Model.AssistantListsAndDeletesInOneRound = true;
+
+        var paused = await RunFirstTurnAsync(harness);
+
+        // The assistant's own round: only delete_item is put to the person, and nothing ran yet.
+        var outcome = Assert.IsType<RunFinishedInterruptOutcome>(Assert.IsType<RunFinishedEvent>(paused.Events[^1]).Outcome);
+
+        Assert.Equal(DeleteToolName, GetToolName(Assert.Single(outcome.Interrupts)));
+        Assert.Equal(0, harness.ListTool.CallCount);
+        Assert.Equal(0, harness.DeleteTool.CallCount);
+
+        // list_items shows as running, also in the stored message a reload shows: no interrupt, nothing to answer.
+        var listCall = Assert.Single(paused.Activity.ToolCalls, call => call.CallId == AgentApprovalTestHarness.ListCallId);
+
+        Assert.Equal(ChatTurnToolCallStatus.Requested, listCall.Status);
+        Assert.True(listCall.NeedsNoApproval);
+        Assert.Null(listCall.ApprovalRequestId);
+        Assert.Contains(paused.Events, evt => evt is ToolCallStartEvent start && start.ToolCallId == AgentApprovalTestHarness.ListCallId);
+        Assert.True(paused.Activity.HasPendingCalls);
+
+        var resumed = await ResumeAsync(harness, paused, approveDelete);
+
+        // list_items ran once whatever the person answered; the answer decided delete_item.
+        Assert.Equal(1, harness.ListTool.CallCount);
+        Assert.Equal(expectedDeletes, harness.DeleteTool.CallCount);
+        Assert.Equal(ChatTurnToolCallStatus.Approved, paused.Activity.ToolCalls.Single(call => call.CallId == AgentApprovalTestHarness.ListCallId).Status);
+        Assert.DoesNotContain(AgentApprovalTestHarness.ListCallId, resumed.Writer.RejectedCallIds);
+        Assert.StartsWith("Listed: Items: 7, 8", resumed.Text, StringComparison.Ordinal);
+        Assert.IsType<RunFinishedSuccessOutcome>(Assert.IsType<RunFinishedEvent>(resumed.Events[^1]).Outcome);
+    }
+
+    [Fact]
+    public async Task TheWriter_AsksOnlyForTheCallsThatAreNotMarked()
+    {
+        var events = new List<BaseEvent>();
+        var writer = CreateWriter(events, "run-1");
+        var listRequest = new ToolApprovalRequestContent("ficc_list-1", new FunctionCallContent("list-1", "list_items", new Dictionary<string, object>()))
+        {
+            AdditionalProperties = new AdditionalPropertiesDictionary { [ToolApprovalRequests.NeedsNoApprovalKey] = true },
+        };
+        var deleteRequest = new ToolApprovalRequestContent("ficc_delete-1", new FunctionCallContent("delete-1", DeleteToolName, new Dictionary<string, object> { ["id"] = 7 }));
+        var sendRequest = new ToolApprovalRequestContent("ficc_send-1", new FunctionCallContent("send-1", "send_mail", new Dictionary<string, object>()));
+
+        await writer.WriteUpdateAsync(new ChatResponseUpdate(ChatRole.Assistant, [listRequest, deleteRequest, sendRequest]), "message-1", TestContext.Current.CancellationToken);
+        await writer.FinishAsync(TestContext.Current.CancellationToken);
+
+        // A request without the mark asks, as before, whatever its tool; the marked one shows as running.
+        Assert.Equal(["delete-1", "send-1"], writer.Interrupts.Select(interrupt => interrupt.ToolCallId));
+        Assert.Equal(
+            [(ChatTurnToolCallStatus.Requested, true), (ChatTurnToolCallStatus.AwaitingApproval, false), (ChatTurnToolCallStatus.AwaitingApproval, false)],
+            writer.ToolCalls.Select(call => (call.Status, call.NeedsNoApproval)));
+        Assert.Null(writer.ToolCalls[0].ApprovalRequestId);
+    }
+
+    [Fact]
+    public void ACallThatNeedsNoApproval_IsApprovedOnResume_WhateverTheClientAnswers()
+    {
+        var activity = new ChatTurnToolActivity
+        {
+            ToolCalls =
+            [
+                new ChatTurnToolCall { CallId = "c1", Name = "delete_item", Arguments = """{"id":1}""", Status = ChatTurnToolCallStatus.AwaitingApproval, ApprovalRequestId = "r1" },
+                new ChatTurnToolCall { CallId = "c2", Name = "list_items", Arguments = "{}", Status = ChatTurnToolCallStatus.Requested, NeedsNoApproval = true },
+                new ChatTurnToolCall { CallId = "c3", Name = "read_item", Arguments = "{}", Status = ChatTurnToolCallStatus.Requested },
+            ],
+        };
+        var history = new List<ChatMessage> { new(ChatRole.User, "List and delete") };
+        var rejected = new HashSet<string>(StringComparer.Ordinal);
+        using var scope = AIInvocationScope.Begin();
+
+        // The client denies the call that needs an approval, and tries to answer the others by their call ids.
+        ChatTurnResume.Apply(activity, CreateResumeRequest(new Dictionary<string, bool> { ["r1"] = false, ["c2"] = false, ["c3"] = true }), history, rejected, scope.Context);
+
+        // The marked call is approved by the server; a call without the mark gets nothing from the client.
+        Assert.Equal(
+            [ChatTurnToolCallStatus.Rejected, ChatTurnToolCallStatus.Approved, ChatTurnToolCallStatus.Requested],
+            activity.ToolCalls.Select(call => call.Status));
+        Assert.Equal(["c1"], rejected);
+        Assert.Equal(["c1", "c2"], history[1].Contents.OfType<ToolApprovalRequestContent>().Select(request => ((FunctionCallContent)request.ToolCall).CallId));
+        Assert.Equal([false, true], history[2].Contents.OfType<ToolApprovalResponseContent>().Select(response => response.Approved));
+        Assert.DoesNotContain(history.SelectMany(message => message.Contents), content => content is FunctionCallContent { CallId: "c3" });
+
+        // Once the marked call ran, the answers stand: answering again could run it twice.
+        Assert.True(ChatTurnResume.HaveApprovedCallsStarted(activity, [new ChatTurnToolCall { CallId = "c2", Status = ChatTurnToolCallStatus.Completed, Result = "Items" }], scope.Context));
+    }
+
+    [Fact]
+    public void OnlyACallToAFunctionThatNeedsNoApproval_IsMarked()
+    {
+        var delete = new ApprovalRequiredAIFunction(AIFunctionFactory.Create(() => "Deleted.", "delete_item"));
+        var list = AIFunctionFactory.Create(() => "Items", "list_items");
+        var clientTool = AIFunctionFactory.CreateDeclaration("get_weather", "Gets the weather.", JsonElement.Parse("""{"type":"object","properties":{}}"""));
+        var requests = new[] { "delete_item", "list_items", "get_weather", "unknown_tool" }
+            .Select(name => new ToolApprovalRequestContent($"ficc_{name}", new FunctionCallContent(name, name, new Dictionary<string, object>())))
+            .ToList();
+
+        ToolApprovalRequests.MarkCallsThatNeedNoApproval(requests, [delete, list, clientTool]);
+
+        // A tool that requires an approval, a tool the client runs and a tool that was not offered keep asking.
+        Assert.Equal([false, true, false, false], requests.Select(ToolApprovalRequests.NeedsNoApproval));
+        Assert.True(ToolApprovalRequests.RequiresApproval(delete));
+        Assert.False(ToolApprovalRequests.RequiresApproval(list));
     }
 
     [Fact]

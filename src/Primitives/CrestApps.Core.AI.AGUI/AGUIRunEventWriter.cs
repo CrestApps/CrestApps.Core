@@ -403,6 +403,10 @@ public sealed class AGUIRunEventWriter
                 break;
 
 #pragma warning disable MEAI001 // Tool approvals are a preview API of Microsoft.Extensions.AI.
+            case ToolApprovalRequestContent approval when approval.ToolCall is FunctionCallContent waitingCall && ToolApprovalRequests.NeedsNoApproval(approval):
+                await WriteCallThatNeedsNoApprovalAsync(waitingCall, messageId, cancellationToken);
+                break;
+
             case ToolApprovalRequestContent approval when approval.ToolCall is FunctionCallContent approvalCall:
                 await WriteApprovalRequestAsync(
                     approval.RequestId,
@@ -513,6 +517,30 @@ public sealed class AGUIRunEventWriter
             : ChatTurnToolCallStatus.Requested;
 
         await StartToolCallAsync(call, messageId, status, approvalRequestId: null, cancellationToken);
+    }
+
+    /// <summary>
+    /// Writes a call whose tool needs no approval, and that waits only because it shares a round of tool calls with one
+    /// that does. It shows as running and asks nobody: the resume approves it, whatever the person answers to the
+    /// others. It keeps no approval request id, so a client never takes it for an interrupt.
+    /// </summary>
+    /// <param name="call">The tool call.</param>
+    /// <param name="messageId">The id of the assistant message.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>A task that completes when the events are written.</returns>
+    private async ValueTask WriteCallThatNeedsNoApprovalAsync(FunctionCallContent call, string messageId, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrEmpty(call.CallId))
+        {
+            return;
+        }
+
+        if (!_toolCallsById.TryGetValue(call.CallId, out var record))
+        {
+            record = await StartToolCallAsync(call, messageId, ChatTurnToolCallStatus.Requested, approvalRequestId: null, cancellationToken);
+        }
+
+        record.NeedsNoApproval = true;
     }
 
     /// <summary>

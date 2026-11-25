@@ -56,6 +56,15 @@ internal static class AgentRunHistory
                 case ToolApprovalRequestContent approval when approval.ToolCall is FunctionCallContent waiting && !string.IsNullOrEmpty(waiting.CallId):
                     var record = GetOrAddCall(run, waiting);
 
+                    // A call whose tool needs no approval waits only because its round has a call that does. Nobody is
+                    // asked for it, and the resume runs it.
+                    if (ToolApprovalRequests.NeedsNoApproval(approval))
+                    {
+                        record.NeedsNoApproval = true;
+
+                        break;
+                    }
+
                     record.Status = ChatTurnToolCallStatus.AwaitingApproval;
                     record.ApprovalRequestId = approval.RequestId;
                     break;
@@ -101,13 +110,17 @@ internal static class AgentRunHistory
 
         foreach (var call in run.ToolCalls)
         {
-            if (call.Status != ChatTurnToolCallStatus.AwaitingApproval)
+            var needsNoApproval = call.NeedsNoApproval && call.Status == ChatTurnToolCallStatus.Requested;
+
+            if (call.Status != ChatTurnToolCallStatus.AwaitingApproval && !needsNoApproval)
             {
                 continue;
             }
 
+            // A call whose tool needs no approval runs whatever the person answered to the others, as it would have alone.
             var requestId = call.ApprovalRequestId ?? call.CallId;
-            var approved = resumption.Decisions.TryGetValue(AgentToolApprovals.ComposeId(run.CallId, requestId), out var decision) && decision;
+            var approved = needsNoApproval ||
+                (resumption.Decisions.TryGetValue(AgentToolApprovals.ComposeId(run.CallId, requestId), out var decision) && decision);
             var request = new ToolApprovalRequestContent(requestId, new FunctionCallContent(call.CallId, call.Name, ParseArguments(call.Arguments)));
 
             call.Status = approved

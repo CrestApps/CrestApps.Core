@@ -5,6 +5,7 @@ using CrestApps.Core.AI.Completions;
 using CrestApps.Core.AI.Deployments;
 using CrestApps.Core.AI.Exceptions;
 using CrestApps.Core.AI.Models;
+using CrestApps.Core.AI.Orchestration;
 using CrestApps.Core.AI.Resilience;
 using CrestApps.Core.AI.Tooling;
 using CrestApps.Core.Extensions;
@@ -174,6 +175,7 @@ public abstract class NamedAICompletionClient : AICompletionServiceBase, IAIComp
 
             var response = await chatClient.GetResponseAsync(prompts, chatOptions, cancellationToken);
 
+            ToolApprovalRequests.MarkCallsThatNeedNoApproval(response, chatOptions.Tools);
             ProcessChatResponse(response, prompts);
 
             return response;
@@ -240,6 +242,9 @@ public abstract class NamedAICompletionClient : AICompletionServiceBase, IAIComp
                     new KeyValuePair<string, object>(AITelemetry.ClientTag, ClientName));
             }
 
+            // The function invocation asks for an approval of every call of a round once one of them requires an
+            // approval; the calls that need none are marked, so only the others are put to a person.
+            ToolApprovalRequests.MarkCallsThatNeedNoApproval(update.Contents, chatOptions.Tools);
             ProcessChatResponseUpdate(update, prompts);
 
             yield return update;
