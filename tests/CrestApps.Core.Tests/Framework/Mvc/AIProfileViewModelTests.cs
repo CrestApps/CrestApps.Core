@@ -262,6 +262,25 @@ public sealed class AIProfileViewModelTests
         Assert.True(copilotMetadata.IsAllowAll);
     }
 
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void RunToolsWithoutAsking_RoundTripsThroughTheProfile(bool runWithoutAsking)
+    {
+        var profile = new AIProfile();
+
+        new AIProfileViewModel { RunToolsWithoutAsking = runWithoutAsking }.ApplyTo(profile);
+
+        Assert.Equal(runWithoutAsking, profile.TryGetSettings<AIToolApprovalSettings>(out var settings) && settings.RunsAllWithoutAsking());
+        Assert.Equal(runWithoutAsking, AIProfileViewModel.FromProfile(profile).RunToolsWithoutAsking);
+    }
+
+    [Fact]
+    public void FromProfile_ProfileSavedBeforeTheSetting_AsksForApproval()
+    {
+        Assert.False(AIProfileViewModel.FromProfile(new AIProfile()).RunToolsWithoutAsking);
+    }
+
     [Fact]
     public void FromProfile_WhenMemoryMetadataExists_ShouldReadValue()
     {

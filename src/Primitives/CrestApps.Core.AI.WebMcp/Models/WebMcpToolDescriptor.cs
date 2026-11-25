@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using CrestApps.Core.AI.Tooling;
 
 namespace CrestApps.Core.AI.WebMcp.Models;
 
@@ -31,4 +32,13 @@ public sealed class WebMcpToolDescriptor
     /// </summary>
     [JsonPropertyName("inputSchema")]
     public JsonElement InputSchema { get; set; }
+
+    /// <summary>
+    /// Gets or sets what the tool does to the application's data and to the outside world, when its registration
+    /// says so: <c>read</c>, <c>write</c>, <c>destructive</c>, <c>external</c> or <c>security</c> (the names of
+    /// <see cref="AIToolKind"/> in lower case). It is left out of the JSON when the tool has no kind.
+    /// </summary>
+    [JsonPropertyName("kind")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string Kind { get; set; }
 }

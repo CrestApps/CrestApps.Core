@@ -484,15 +484,18 @@ public class ChatInteractionHubBase : Hub<IChatInteractionHubClient>
         interaction.MaxTokens = JsonHelper.GetInt(settings, "maxTokens");
         interaction.PastMessagesCount = JsonHelper.GetInt(settings, "pastMessagesCount");
 
-        var selectableToolNames = services
+        var toolDefinitions = services
             .GetRequiredService<IOptions<AIToolDefinitionOptions>>()
-            .Value
+            .Value;
+        var selectableToolNames = toolDefinitions
             .GetSelectableTools()
             .Keys
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
-        interaction.ToolNames = (JsonHelper.GetStringArray(settings, "toolNames") ?? [])
-            .Where(name => !string.IsNullOrWhiteSpace(name) && selectableToolNames.Contains(name))
-            .Distinct(StringComparer.OrdinalIgnoreCase)
+
+        // A name saved before a tool was renamed is one of the tool's aliases; it is stored under the current name.
+        interaction.ToolNames = toolDefinitions
+            .ResolveToolNames(JsonHelper.GetStringArray(settings, "toolNames") ?? [])
+            .Where(name => selectableToolNames.Contains(name))
             .ToArray();
 
         var allAgents = await services.GetRequiredService<IAIProfileManager>().GetAsync(AIProfileType.Agent);

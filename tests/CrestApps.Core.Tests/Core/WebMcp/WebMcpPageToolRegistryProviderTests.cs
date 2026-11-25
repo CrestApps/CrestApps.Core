@@ -68,6 +68,12 @@ public sealed class WebMcpPageToolRegistryProviderTests
         Assert.True(Assert.Single(asked, entry => entry.Id == "webmcp:store.place_order").RequiresApproval);
         Assert.False(Assert.Single(asked, entry => entry.Id == "webmcp:page_get_info").RequiresApproval);
         Assert.False(Assert.Single(trusted, entry => entry.Id == "webmcp:store.place_order").RequiresApproval);
+
+        // A consequential page tool's approval is a floor: a profile's approval policy never lets it run unasked.
+        // Only the profile's own "Allow consequential page tools" switch does.
+        Assert.Equal(ToolApprovalMode.EveryCall, Assert.Single(asked, entry => entry.Id == "webmcp:store.place_order").ApprovalFloor);
+        Assert.Null(Assert.Single(asked, entry => entry.Id == "webmcp:page_get_info").ApprovalFloor);
+        Assert.Null(Assert.Single(trusted, entry => entry.Id == "webmcp:store.place_order").ApprovalFloor);
     }
 
     [Fact]

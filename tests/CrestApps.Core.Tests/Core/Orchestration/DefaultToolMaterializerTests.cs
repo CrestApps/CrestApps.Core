@@ -123,7 +123,7 @@ public sealed class DefaultToolMaterializerTests
     }
 
     [Fact]
-    public async Task MaterializeAsync_WithoutApprovalSupport_LeavesOutToolsThatRequireApproval()
+    public async Task MaterializeAsync_WithoutApprovalSupport_OffersToolsThatRequireApprovalAsToolsThatDoNotRun()
     {
         var read = new TestAIFunction("read-tool");
         var delete = CreateEntry("delete", "delete", ToolRegistryEntrySource.Local, new TestAIFunction("delete-tool"));
@@ -135,11 +135,18 @@ public sealed class DefaultToolMaterializerTests
         ];
 
         // Agents, realtime sessions and background requests have nobody to ask; running the tool unasked would
-        // bypass the approval it requires.
+        // bypass the approval it requires. The model still sees the tool, and a call tells it why nothing ran.
         var result = await CreateMaterializer().MaterializeAsync(entries, ToolMaterializationOptions.Default, TestContext.Current.CancellationToken);
 
-        Assert.Equal([read], result.Tools);
+        Assert.Equal(2, result.Tools.Count);
+        var refusing = Assert.IsType<ApprovalUnavailableAIFunction>(result.Tools[0]);
+        Assert.Equal("delete-tool", refusing.Name);
+        Assert.Same(read, result.Tools[1]);
         Assert.Empty(result.DeniedToolNames);
+
+        var answer = await refusing.InvokeAsync(new AIFunctionArguments(), TestContext.Current.CancellationToken);
+
+        Assert.Equal(ApprovalUnavailableAIFunction.GetMessage("delete-tool"), answer?.ToString());
     }
 
     [Fact]

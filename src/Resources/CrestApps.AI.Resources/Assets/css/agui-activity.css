@@ -79,6 +79,59 @@
     margin: 0 0.5rem 0.375rem;
 }
 
+.ai-chat-agui-tool-agent {
+    margin-inline-start: 0.25rem;
+    color: var(--bs-secondary-color, #6c757d);
+}
+
+/* The card's field table sits inside a chat message, so these rules are scoped under the card: the chat's
+   own rules for markdown tables (a block table at its content's width, cells on one line) must not reach it,
+   or a long value runs off the card on a single line. */
+.ai-chat-agui-tool .ai-chat-agui-tool-fields {
+    display: table;
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    table-layout: fixed;
+    margin: 0;
+    overflow: visible;
+    border-collapse: collapse;
+    font-size: 0.875rem;
+    background: var(--bs-body-bg, #fff);
+    border-radius: 0.25rem;
+}
+
+.ai-chat-agui-tool .ai-chat-agui-tool-fields th,
+.ai-chat-agui-tool .ai-chat-agui-tool-fields td {
+    padding: 0.375rem 0.5rem;
+    vertical-align: top;
+    border-top: 1px solid var(--bs-border-color, #dee2e6);
+}
+
+.ai-chat-agui-tool .ai-chat-agui-tool-fields tr:first-child th,
+.ai-chat-agui-tool .ai-chat-agui-tool-fields tr:first-child td {
+    border-top: 0;
+}
+
+.ai-chat-agui-tool .ai-chat-agui-tool-fields th {
+    width: 8rem;
+    font-weight: 400;
+    color: var(--bs-secondary-color, #6c757d);
+    white-space: nowrap;
+}
+
+.ai-chat-agui-tool .ai-chat-agui-tool-fields td {
+    color: var(--bs-body-color, #212529);
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+/* A long value, such as the whole body of an email waiting for approval, scrolls inside the card. */
+.ai-chat-agui-tool-value {
+    max-height: 12rem;
+    overflow: auto;
+}
+
 .ai-chat-agui-approval {
     display: flex;
     flex-wrap: wrap;
@@ -91,4 +144,13 @@
 
 .ai-chat-agui-approval span {
     margin-inline-end: auto;
+}
+
+/* While a call waits for an answer, the message's buttons (copy, read aloud) stay hidden: they sit at the
+   bottom right of the message, on top of Deny, and would take the click meant for it. */
+.ai-chat-messages .ai-chat-message-item:has(.ai-chat-agui-approval) .message-buttons-container,
+.ai-chat-messages .ai-chat-message-item:has(.ai-chat-agui-approval):hover .message-buttons-container,
+.ai-chat-messages .ai-chat-message-item:has(.ai-chat-agui-approval):focus-within .message-buttons-container {
+    opacity: 0;
+    pointer-events: none;
 }

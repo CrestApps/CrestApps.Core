@@ -93,3 +93,54 @@ internal sealed class ServicesProbeTestTool : AIFunction
         return ValueTask.FromResult<object>(arguments.Services is null ? "no services" : "services");
     }
 }
+
+/// <summary>
+/// A selectable test tool registered as a destructive tool.
+/// </summary>
+internal sealed class DestructiveKindTestTool : AIFunction
+{
+    public const string TheName = "destructive_tool";
+
+    public override string Name => TheName;
+
+    public override string Description => "Deletes something.";
+
+    protected override ValueTask<object> InvokeCoreAsync(AIFunctionArguments arguments, CancellationToken cancellationToken)
+    {
+        return ValueTask.FromResult<object>("deleted");
+    }
+}
+
+/// <summary>
+/// A selectable test tool registered as a security tool.
+/// </summary>
+internal sealed class SecurityKindTestTool : AIFunction
+{
+    public const string TheName = "security_tool";
+
+    public override string Name => TheName;
+
+    public override string Description => "Changes who can access something.";
+
+    protected override ValueTask<object> InvokeCoreAsync(AIFunctionArguments arguments, CancellationToken cancellationToken)
+    {
+        return ValueTask.FromResult<object>("granted");
+    }
+}
+
+/// <summary>
+/// A selectable test tool registered as a read tool.
+/// </summary>
+internal sealed class ReadKindTestTool : AIFunction
+{
+    public const string TheName = "read_tool";
+
+    public override string Name => TheName;
+
+    public override string Description => "Reads something.";
+
+    protected override ValueTask<object> InvokeCoreAsync(AIFunctionArguments arguments, CancellationToken cancellationToken)
+    {
+        return ValueTask.FromResult<object>("read");
+    }
+}

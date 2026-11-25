@@ -32,8 +32,17 @@ public sealed class ToolMaterializationOptions
     /// Gets a value indicating whether the caller can ask a person to approve a tool call. When it is
     /// <see langword="true"/>, the tools whose entry sets <see cref="Models.ToolRegistryEntry.RequiresApproval"/>
     /// are wrapped in <see cref="Microsoft.Extensions.AI.ApprovalRequiredAIFunction"/>, so the function invocation
-    /// pauses for an approval instead of running them. When it is <see langword="false"/>, those tools are left out,
-    /// so they never run without the approval they require.
+    /// pauses for an approval instead of running them. When it is <see langword="false"/> (the default), those tools
+    /// never run: each is replaced with a function of the same name and schema that does not run the tool and tells
+    /// the model that this conversation cannot ask a person for the approval, so the model can tell the user.
     /// </summary>
     public bool SupportsToolApproval { get; init; }
+
+    /// <summary>
+    /// Gets the approval policy of the request, or <see langword="null"/> when every call that requires an approval
+    /// asks. A tool the policy lets run without asking (see <see cref="ToolApprovalPolicy.RunsWithoutAsking"/>) is
+    /// neither wrapped for an approval nor replaced, whether the caller can ask or not: it runs, and each call is
+    /// logged and counted. Only the approval is skipped; the access checks are unchanged.
+    /// </summary>
+    public ToolApprovalPolicy ApprovalPolicy { get; init; }
 }

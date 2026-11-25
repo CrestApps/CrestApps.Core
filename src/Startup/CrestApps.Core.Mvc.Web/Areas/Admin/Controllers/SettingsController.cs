@@ -585,7 +585,7 @@ public sealed class SettingsController : Controller
                 Title = tool.Value.Title ?? tool.Key,
                 Description = tool.Value.Description,
                 Category = tool.Value.Category ?? "Miscellaneous",
-                IsSelected = selectedNames.Contains(tool.Key) || selectedNames.Contains(tool.Value.Name),
+                IsSelected = selectedNames.Contains(tool.Key) || tool.Value.IsNamedIn(selectedNames),
             })
             .OrderBy(tool => tool.Category, StringComparer.OrdinalIgnoreCase)
             .ThenBy(tool => tool.Title, StringComparer.OrdinalIgnoreCase)
@@ -632,7 +632,7 @@ public sealed class SettingsController : Controller
                 Title = tool.Value.Title ?? tool.Key,
                 Description = tool.Value.Description,
                 Category = tool.Value.Category ?? "Miscellaneous",
-                IsSelected = selectedNames.Contains(tool.Key) || selectedNames.Contains(tool.Value.Name),
+                IsSelected = selectedNames.Contains(tool.Key) || tool.Value.IsNamedIn(selectedNames),
             })
             .OrderBy(tool => tool.Category, StringComparer.OrdinalIgnoreCase)
             .ThenBy(tool => tool.Title, StringComparer.OrdinalIgnoreCase)

@@ -86,8 +86,14 @@ public sealed class FunctionInvocationAICompletionServiceHandler : IAICompletion
             {
                 EnforceListableAccess = isChatInteraction,
                 User = isChatInteraction ? _userAccessor.User : null,
+
+                // A tool that requires an approval never runs without one: when this request cannot ask a person,
+                // the tool is replaced with one that tells the model why it was not run.
                 SupportsToolApproval = context.CompletionContext.AdditionalProperties.TryGetValue(AICompletionContextKeys.ToolApprovalSupported, out var approvalValue) &&
                     approvalValue is true,
+
+                // Unless the request's approval policy lets the tool run without asking; each such call is audited.
+                ApprovalPolicy = context.CompletionContext.GetToolApprovalPolicy(),
             },
             cancellationToken);
 

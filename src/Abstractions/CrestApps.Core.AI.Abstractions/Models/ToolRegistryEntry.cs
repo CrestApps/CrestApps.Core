@@ -1,3 +1,4 @@
+using CrestApps.Core.AI.Tooling;
 using Microsoft.Extensions.AI;
 
 namespace CrestApps.Core.AI.Models;
@@ -49,9 +50,25 @@ public sealed class ToolRegistryEntry
     public Func<IServiceProvider, ValueTask<AITool>> CreateAsync { get; set; }
 
     /// <summary>
-    /// Gets or sets a value indicating whether a person must approve each call of this tool before it runs.
-    /// It applies only to callers that can ask for an approval, such as an AG-UI chat run; other callers run the
-    /// tool as before.
+    /// Gets or sets a value indicating whether a person must approve each call of this tool before it runs. A caller
+    /// that can ask for an approval, such as an AG-UI chat run, pauses for one before the call. Any other caller never
+    /// runs the tool: it gets a stand-in with the same name and schema that does not run it and tells the model why
+    /// (a tool that is not an <see cref="AIFunction"/> is left out instead).
     /// </summary>
     public bool RequiresApproval { get; set; }
+
+    /// <summary>
+    /// Gets or sets the least strict approval the tool's own registration allows, or <see langword="null"/> when
+    /// it has none. A tool registered with an explicit <c>.RequireApproval()</c>, and a consequential WebMCP page
+    /// tool, have <see cref="ToolApprovalMode.EveryCall"/>: a profile's approval policy never lets such a tool run
+    /// without asking. A tool that requires an approval only because of its <see cref="Kind"/> has none.
+    /// </summary>
+    public ToolApprovalMode? ApprovalFloor { get; set; }
+
+    /// <summary>
+    /// Gets or sets what the tool does to the application's data and to the outside world, when its registration
+    /// says so. Tools from sources that carry no kind, such as MCP servers and agents, keep
+    /// <see cref="AIToolKind.Unspecified"/>.
+    /// </summary>
+    public AIToolKind Kind { get; set; }
 }

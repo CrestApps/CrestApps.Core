@@ -85,6 +85,41 @@ public sealed class AGUIRunEventWriterTests
     }
 
     [Fact]
+    public async Task WriteUpdateAsync_GivesACallTheTitleOfItsTool_AndKeepsItWithTheCall()
+    {
+        var events = new List<BaseEvent>();
+        var writer = CreateWriter(events);
+        writer.ToolDisplayTextResolver = (name, _) => ValueTask.FromResult(name == "email-agent" ? "Email Agent" : null);
+
+        await writer.WriteUpdateAsync(new ChatResponseUpdate(ChatRole.Assistant, [new FunctionCallContent("c1", "email-agent")]), "m1", TestContext.Current.CancellationToken);
+        await writer.WriteUpdateAsync(new ChatResponseUpdate(ChatRole.Assistant, [new FunctionCallContent("c2", "get_order")]), "m1", TestContext.Current.CancellationToken);
+
+        // The protocol's TOOL_CALL_START keeps the tool's name; the title follows in a CUSTOM event, once the call's
+        // events are closed.
+        Assert.Equal(
+            [
+                AGUIEventTypes.RunStarted,
+                AGUIEventTypes.ToolCallStart,
+                AGUIEventTypes.ToolCallArgs,
+                AGUIEventTypes.ToolCallEnd,
+                AGUIEventTypes.Custom,
+                AGUIEventTypes.ToolCallStart,
+                AGUIEventTypes.ToolCallArgs,
+                AGUIEventTypes.ToolCallEnd,
+            ],
+            events.Select(evt => evt.Type));
+
+        var title = Assert.Single(events.OfType<CustomEvent>());
+        Assert.Equal(AGUIRunEventWriter.ToolCallDisplayEventName, title.Name);
+        Assert.Equal("c1", title.Value.Value.GetProperty("toolCallId").GetString());
+        Assert.Equal("Email Agent", title.Value.Value.GetProperty("displayText").GetString());
+
+        // The title is stored with the message, so the call shows it after a reload.
+        Assert.Equal(["Email Agent", null], writer.ToolCalls.Select(call => call.DisplayText));
+        Assert.Equal("email-agent", writer.ToolCalls[0].Name);
+    }
+
+    [Fact]
     public async Task WriteUpdateAsync_LeavesACallToAClientToolWaitingForTheClient()
     {
         var events = new List<BaseEvent>();

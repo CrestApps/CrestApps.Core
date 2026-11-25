@@ -64,6 +64,10 @@ window.coreAIChatManager = function () {
         aguiInputLabel: 'Input',
         aguiResultLabel: 'Result',
         aguiApprovalPrompt: 'Allow this action?',
+        // Asked when an agent the assistant delegated to made the call; {0} is the agent's name.
+        aguiAgentApprovalPrompt: 'Allow {0} to do this?',
+        // Shown next to a call an agent made; {0} is the agent's title.
+        aguiAgentLabel: 'by {0}',
         aguiAllowLabel: 'Allow',
         aguiDenyLabel: 'Deny',
         aguiAllowedLabel: 'Allowed',
@@ -522,11 +526,64 @@ window.coreAIChatManager = function () {
             .map(call => ({
                 id: call.callId || call.id,
                 name: call.name || '',
+                // The title the person sees for the call, such as the agent's title for a call to an agent.
+                displayText: call.displayText || '',
                 arguments: call.arguments || '',
                 result: call.result || '',
                 status: normalizeToolCallStatus(call.status),
                 interruptId: call.interruptId || call.approvalRequestId || null,
+                // The agent that made the call, when an agent the assistant delegated to made it.
+                agentName: call.agentName || '',
+                // The agent's title, which the person sees; the name is its id.
+                agentDisplayText: call.agentDisplayText || '',
+                // The assistant's call to that agent, which the call's card stands for.
+                agentCallId: call.agentCallId || '',
             }));
+    }
+
+    // Turns a field name into a label: "subject" -> "Subject", "contentItemId" -> "Content item id".
+    function humanizeName(name) {
+        const words = String(name || '')
+            .replace(/[_.-]+/g, ' ')
+            .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+            .replace(/([A-Z]+)([A-Z][a-z])/g, '$1 $2')
+            .trim()
+            .split(/\s+/)
+            .filter(Boolean)
+            // Words after the first are lower-cased, except acronyms such as "ID" or "PR327".
+            .map((word, index) => index > 0 && /^[A-Z][a-z]/.test(word) ? word.toLowerCase() : word);
+
+        if (!words.length) {
+            return '';
+        }
+
+        return words[0].charAt(0).toUpperCase() + words[0].slice(1) + (words.length > 1 ? ' ' + words.slice(1).join(' ') : '');
+    }
+
+    // Shows a call's input as labeled fields when it is a plain object, so a person reads "To", "Subject" and
+    // "Message" instead of JSON. Anything else (an array, text that is not JSON) keeps the raw view. Each value is
+    // cut at maxLength characters; a call that waits for an approval passes Infinity, so the person approves what
+    // they read in full.
+    function formatToolFields(text, maxLength) {
+        const parsed = parseToolArguments(text);
+
+        if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
+            return null;
+        }
+
+        const rows = Object.keys(parsed).map(key => {
+            const value = parsed[key];
+            const shown = value !== null && typeof value === 'object'
+                ? JSON.stringify(value)
+                : String(value ?? '');
+
+            return '<tr><th scope="row">' + escapeHtmlText(humanizeName(key)) + '</th><td><div class="ai-chat-agui-tool-value">' +
+                escapeHtmlText(shown.length > maxLength ? shown.slice(0, maxLength) + '…' : shown) + '</div></td></tr>';
+        });
+
+        return rows.length
+            ? '<table class="ai-chat-agui-tool-fields"><tbody>' + rows.join('') + '</tbody></table>'
+            : null;
     }
 
     function parseToolArguments(text) {
@@ -543,11 +600,10 @@ window.coreAIChatManager = function () {
 
     function describeToolCall(call) {
         const labels = Object.assign({}, aguiDefaultToolLabels, defaultConfig.aguiToolLabels || {});
-        let label = labels[call.name];
+        let label = labels[call.name] || call.displayText;
 
         if (!label) {
-            label = String(call.name || 'tool').replace(/[_.-]+/g, ' ');
-            label = label.charAt(0).toUpperCase() + label.slice(1);
+            label = humanizeName(call.name || 'tool');
         }
 
         const args = parseToolArguments(call.arguments);
@@ -581,7 +637,14 @@ window.coreAIChatManager = function () {
                 '</summary><div class="ai-chat-agui-reasoning-text">' + escapeHtmlText(message.reasoning) + '</div></details>');
         }
 
+        // A call an agent made stands for the assistant's call to that agent: one card per tool, which names the agent.
+        const agentCallIds = new Set(toolCalls.filter(call => call.agentCallId).map(call => call.agentCallId));
+
         for (const call of toolCalls) {
+            if (agentCallIds.has(call.id)) {
+                continue;
+            }
+
             const status = call.status || 'requested';
             let icon = 'fa-solid fa-circle-notch fa-spin';
             let state = defaultConfig.aguiRunningLabel;
@@ -600,8 +663,15 @@ window.coreAIChatManager = function () {
             let details = '';
 
             if (call.arguments && call.arguments !== '{}') {
-                details += '<div class="ai-chat-agui-tool-section"><div class="ai-chat-agui-tool-section-label">' + escapeHtmlText(defaultConfig.aguiInputLabel) +
-                    '</div><pre>' + escapeHtmlText(formatToolText(call.arguments, 2000)) + '</pre></div>';
+                // A call that waits for an approval shows its whole input: the person must not approve text they
+                // could not read. Long values scroll inside the card instead.
+                const inputLimit = status === 'awaitingApproval' ? Infinity : 2000;
+                const fields = formatToolFields(call.arguments, inputLimit);
+
+                details += fields
+                    ? '<div class="ai-chat-agui-tool-section">' + fields + '</div>'
+                    : '<div class="ai-chat-agui-tool-section"><div class="ai-chat-agui-tool-section-label">' + escapeHtmlText(defaultConfig.aguiInputLabel) +
+                        '</div><pre>' + escapeHtmlText(formatToolText(call.arguments, inputLimit)) + '</pre></div>';
             }
 
             if (call.result) {
@@ -609,16 +679,25 @@ window.coreAIChatManager = function () {
                     '</div><pre>' + escapeHtmlText(formatToolText(call.result, 2000)) + '</pre></div>';
             }
 
+            // The agent that made the call, by its title.
+            const agentLabel = call.agentName ? (call.agentDisplayText || describeToolCall({ name: call.agentName })) : '';
             const summary = '<i class="' + icon + '" aria-hidden="true"></i> <span class="ai-chat-agui-tool-name">' + escapeHtmlText(describeToolCall(call)) + '</span>' +
+                (agentLabel ? ' <span class="ai-chat-agui-tool-agent">' + escapeHtmlText(String(defaultConfig.aguiAgentLabel).replace('{0}', () => agentLabel)) + '</span>' : '') +
                 (state ? ' <span class="ai-chat-agui-tool-state">' + escapeHtmlText(state) + '</span>' : '');
             let html = '<div class="ai-chat-agui-tool ai-chat-agui-tool-' + escapeHtmlText(status) + '" data-agui-tool-call="' + escapeHtmlText(call.id) + '">';
 
+            // A call that waits for an approval shows what would run, so the person reads it before answering.
             html += details
-                ? '<details><summary>' + summary + '</summary>' + details + '</details>'
+                ? '<details' + (status === 'awaitingApproval' ? ' open' : '') + '><summary>' + summary + '</summary>' + details + '</details>'
                 : '<div class="ai-chat-agui-tool-summary">' + summary + '</div>';
 
             if (status === 'awaitingApproval' && call.interruptId) {
-                html += '<div class="ai-chat-agui-approval"><span>' + escapeHtmlText(defaultConfig.aguiApprovalPrompt) + '</span>' +
+                // A call an agent made names the agent, so the user knows who asks.
+                const approvalPrompt = call.agentName
+                    ? String(defaultConfig.aguiAgentApprovalPrompt).replace('{0}', () => agentLabel)
+                    : defaultConfig.aguiApprovalPrompt;
+
+                html += '<div class="ai-chat-agui-approval"><span>' + escapeHtmlText(approvalPrompt) + '</span>' +
                     '<button type="button" class="btn btn-sm btn-primary" data-agui-interrupt="' + escapeHtmlText(call.interruptId) + '" data-agui-approved="true">' + escapeHtmlText(defaultConfig.aguiAllowLabel) + '</button>' +
                     '<button type="button" class="btn btn-sm btn-outline-secondary" data-agui-interrupt="' + escapeHtmlText(call.interruptId) + '" data-agui-approved="false">' + escapeHtmlText(defaultConfig.aguiDenyLabel) + '</button></div>';
             }
@@ -2610,7 +2689,7 @@ window.coreAIChatManager = function () {
 
                         case 'TOOL_CALL_START': {
                             const message = this.ensureAGUIMessage(run, evt.parentMessageId);
-                            const call = { id: evt.toolCallId, name: evt.toolCallName, arguments: '', result: '', status: 'requested', interruptId: null };
+                            const call = { id: evt.toolCallId, name: evt.toolCallName, displayText: '', arguments: '', result: '', status: 'requested', interruptId: null, agentName: '', agentDisplayText: '' };
 
                             message.toolCalls = message.toolCalls || [];
                             message.toolCalls.push(call);
@@ -2667,6 +2746,23 @@ window.coreAIChatManager = function () {
                                     if (call) {
                                         call.status = 'awaitingApproval';
                                         call.interruptId = interrupt.id;
+
+                                        // A call an agent made: the interrupt names the agent, and the assistant's
+                                        // call to that agent waits until this one is answered.
+                                        const metadata = interrupt.metadata || {};
+
+                                        if (metadata.agentName) {
+                                            const agentCall = run.toolCalls[metadata.agentToolCallId];
+
+                                            call.agentName = metadata.agentName;
+                                            call.agentDisplayText = metadata.agentDisplayText || '';
+                                            call.agentCallId = metadata.agentToolCallId || '';
+
+                                            if (agentCall) {
+                                                agentCall.status = 'awaitingApproval';
+                                                agentCall.displayText = agentCall.displayText || call.agentDisplayText;
+                                            }
+                                        }
                                     }
                                 }
 
@@ -2713,6 +2809,18 @@ window.coreAIChatManager = function () {
 
                             this.refreshAGUIMessage(run);
                             break;
+
+                        case 'crestapps.tool_call_display': {
+                            // The title of a tool call, such as the agent's title for a call to an agent.
+                            const call = run.toolCalls[value.toolCallId];
+
+                            if (call) {
+                                call.displayText = value.displayText || '';
+                                this.refreshAGUIMessage(run);
+                            }
+
+                            break;
+                        }
 
                         case 'crestapps.message_replaced':
                             this.ensureAGUIMessage(run, value.messageId);
@@ -2925,6 +3033,21 @@ window.coreAIChatManager = function () {
 
                     if (calls.some(c => c.status === 'awaitingApproval')) {
                         return;
+                    }
+
+                    // A call to an agent waits while the agent's own calls do; it has no interrupt of its own. Every
+                    // answer is in, so it no longer waits: the resumed run makes it again, as the server records.
+                    let agentCallsAnswered = false;
+
+                    for (const call of target.toolCalls) {
+                        if (!call.interruptId && call.status === 'awaitingApproval') {
+                            call.status = 'approved';
+                            agentCallsAnswered = true;
+                        }
+                    }
+
+                    if (agentCallsAnswered) {
+                        updateMessagePresentation(target, target.references);
                     }
 
                     const resume = calls

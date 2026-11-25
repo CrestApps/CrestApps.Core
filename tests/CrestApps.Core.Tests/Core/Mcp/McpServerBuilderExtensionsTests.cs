@@ -224,6 +224,145 @@ public sealed class McpServerBuilderExtensionsTests
     }
 
     /// <summary>
+    /// Verifies that exposing every tool leaves out the destructive and security tools and every tool that requires an
+    /// approval, and that naming one in the allow-list still exposes it.
+    /// </summary>
+    [Fact]
+    public async Task ListToolsHandler_ExposeAllTools_LeavesOutDestructiveSecurityAndApprovalToolsUnlessNamed()
+    {
+        var services = CreateServices(configureOptions: options =>
+        {
+            options.ExposeAllTools = true;
+            options.Tools = ["purge-key"];
+        });
+
+        AddLocalTool(services, "plain-key", new TestAIFunction("plain"));
+        AddLocalTool(services, "list-key", new TestAIFunction("list"), configure: entry => entry.Kind = AIToolKind.Read);
+        AddLocalTool(services, "save-key", new TestAIFunction("save"), configure: entry => entry.Kind = AIToolKind.Write);
+        AddLocalTool(services, "send-key", new TestAIFunction("send"), configure: entry => entry.Kind = AIToolKind.External);
+        AddLocalTool(services, "delete-key", new TestAIFunction("delete"), configure: entry => entry.Kind = AIToolKind.Destructive);
+        AddLocalTool(services, "grant-key", new TestAIFunction("grant"), configure: entry => entry.Kind = AIToolKind.Security);
+        AddLocalTool(services, "purge-key", new TestAIFunction("purge"), configure: entry => entry.Kind = AIToolKind.Destructive);
+        AddLocalTool(services, "asks-key", new TestAIFunction("asks"), configure: entry => entry.RequiresApproval = true);
+        AddLocalTool(services, "notify-key", new TestAIFunction("notify"), configure: entry =>
+        {
+            entry.Kind = AIToolKind.External;
+            entry.RequiresApproval = false;
+        });
+
+        using var serviceProvider = services.BuildServiceProvider();
+
+        var result = await InvokeListToolsHandlerAsync(
+            serviceProvider,
+            cancellationToken: TestContext.Current.CancellationToken);
+
+        // An MCP client cannot be asked for an approval: "send" (external) and "asks" require one, so only naming them
+        // exposes them. "notify" is external but opted out of the approval, so it is exposed with every tool.
+        Assert.Equal(["plain", "list", "save", "purge", "notify"], result.Tools.Select(tool => tool.Name));
+    }
+
+    /// <summary>
+    /// Verifies that a destructive tool the server leaves out when it exposes every tool cannot be called either,
+    /// and that the same tool can be called once the allow-list names it.
+    /// </summary>
+    /// <param name="named">Whether the allow-list names the tool.</param>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task CallToolHandler_ExposeAllTools_CallsADestructiveToolOnlyWhenNamed(bool named)
+    {
+        var services = CreateServices(configureOptions: options =>
+        {
+            options.ExposeAllTools = true;
+            options.Tools = named ? ["delete"] : [];
+        });
+
+        AddLocalTool(services, "delete", new TestAIFunction("delete"), configure: entry => entry.Kind = AIToolKind.Destructive);
+
+        using var serviceProvider = services.BuildServiceProvider();
+
+        if (named)
+        {
+            Assert.NotNull(await InvokeCallToolHandlerAsync(serviceProvider, "delete", cancellationToken: TestContext.Current.CancellationToken));
+
+            return;
+        }
+
+        await Assert.ThrowsAsync<McpException>(async () =>
+            await InvokeCallToolHandlerAsync(serviceProvider, "delete", cancellationToken: TestContext.Current.CancellationToken));
+    }
+
+    /// <summary>
+    /// Verifies that a listed tool tells the client its kind through the MCP tool annotations, and that a tool
+    /// without a kind has none.
+    /// </summary>
+    [Fact]
+    public async Task ListToolsHandler_DescribesTheKindOfAToolInItsAnnotations()
+    {
+        var services = CreateServices(configureOptions: options => options.Tools = ["plain", "list", "delete", "send"]);
+
+        AddLocalTool(services, "plain", new TestAIFunction("plain"));
+        AddLocalTool(services, "list", new TestAIFunction("list"), configure: entry => entry.Kind = AIToolKind.Read);
+        AddLocalTool(services, "delete", new TestAIFunction("delete"), configure: entry => entry.Kind = AIToolKind.Destructive);
+        AddLocalTool(services, "send", new TestAIFunction("send"), configure: entry => entry.Kind = AIToolKind.External);
+
+        using var serviceProvider = services.BuildServiceProvider();
+
+        var result = await InvokeListToolsHandlerAsync(
+            serviceProvider,
+            cancellationToken: TestContext.Current.CancellationToken);
+        var tools = result.Tools.ToDictionary(tool => tool.Name);
+
+        Assert.Null(tools["plain"].Annotations);
+        Assert.True(tools["list"].Annotations.ReadOnlyHint);
+        Assert.False(tools["delete"].Annotations.ReadOnlyHint);
+        Assert.True(tools["delete"].Annotations.DestructiveHint);
+        Assert.True(tools["send"].Annotations.OpenWorldHint);
+
+        // Hints left out take the MCP defaults (open world, and destructive when not read-only), so each is set.
+        Assert.False(tools["list"].Annotations.OpenWorldHint);
+        Assert.False(tools["delete"].Annotations.OpenWorldHint);
+        Assert.False(tools["send"].Annotations.DestructiveHint);
+    }
+
+    [Theory]
+    [InlineData(AIToolKind.Read, true, null, false)]
+    [InlineData(AIToolKind.Write, false, false, false)]
+    [InlineData(AIToolKind.Destructive, false, true, false)]
+    [InlineData(AIToolKind.External, false, false, true)]
+    [InlineData(AIToolKind.Security, false, true, false)]
+    public void CreateAnnotations_SetsEveryHintTheKindDecides(AIToolKind kind, bool readOnly, bool? destructive, bool openWorld)
+    {
+        var annotations = CrestApps.Core.AI.Mcp.McpServerBuilderExtensions.CreateAnnotations(kind);
+
+        Assert.Equal(readOnly, annotations.ReadOnlyHint);
+        Assert.Equal(destructive, annotations.DestructiveHint);
+        Assert.Equal(openWorld, annotations.OpenWorldHint);
+    }
+
+    /// <summary>
+    /// Verifies that an allow-list that still holds the earlier name of a renamed tool (one of its aliases) keeps
+    /// exposing the tool, listed once under its current name, and keeps it callable.
+    /// </summary>
+    [Fact]
+    public async Task AllowList_WithTheEarlierNameOfARenamedTool_StillExposesTheTool()
+    {
+        var services = CreateServices(configureOptions: options => options.Tools = ["searchForUsers"]);
+
+        AddLocalTool(services, "listUsers", new TestAIFunction("listUsers"), configure: entry => entry.AddAlias("searchForUsers"));
+        AddLocalTool(services, "getUser", new TestAIFunction("getUser"));
+
+        using var serviceProvider = services.BuildServiceProvider();
+
+        var result = await InvokeListToolsHandlerAsync(
+            serviceProvider,
+            cancellationToken: TestContext.Current.CancellationToken);
+
+        Assert.Equal(["listUsers"], result.Tools.Select(tool => tool.Name));
+        Assert.NotNull(await InvokeCallToolHandlerAsync(serviceProvider, "listUsers", cancellationToken: TestContext.Current.CancellationToken));
+    }
+
+    /// <summary>
     /// Verifies that a tool not on the allow-list cannot be invoked through the call handler.
     /// </summary>
     [Fact]
@@ -849,14 +988,16 @@ public sealed class McpServerBuilderExtensionsTests
     /// <param name="tool">The local AI function.</param>
     /// <param name="hidden">Whether the tool is hidden.</param>
     /// <param name="isSystemTool">Whether the tool is a system tool.</param>
+    /// <param name="configure">An optional delegate that sets more of the definition, such as its kind or aliases.</param>
     private static void AddLocalTool(
         IServiceCollection services,
         string registrationName,
         AIFunction tool,
         bool hidden = false,
-        bool isSystemTool = false)
+        bool isSystemTool = false,
+        Action<AIToolDefinitionEntry> configure = null)
     {
-        AddLocalToolDefinition(services, registrationName, hidden, isSystemTool);
+        AddLocalToolDefinition(services, registrationName, hidden, isSystemTool, configure);
         services.AddKeyedSingleton<AITool>(registrationName, tool);
     }
 
@@ -867,21 +1008,25 @@ public sealed class McpServerBuilderExtensionsTests
     /// <param name="registrationName">The keyed registration name.</param>
     /// <param name="hidden">Whether the tool is hidden.</param>
     /// <param name="isSystemTool">Whether the tool is a system tool.</param>
+    /// <param name="configure">An optional delegate that sets more of the definition, such as its kind or aliases.</param>
     private static void AddLocalToolDefinition(
         IServiceCollection services,
         string registrationName,
         bool hidden = false,
-        bool isSystemTool = false)
+        bool isSystemTool = false,
+        Action<AIToolDefinitionEntry> configure = null)
     {
         services.Configure<AIToolDefinitionOptions>(options =>
         {
-            options.SetTool(
-                registrationName,
-                new AIToolDefinitionEntry(typeof(TestAIFunction))
-                {
-                    Hidden = hidden,
-                    IsSystemTool = isSystemTool,
-                });
+            var entry = new AIToolDefinitionEntry(typeof(TestAIFunction))
+            {
+                Hidden = hidden,
+                IsSystemTool = isSystemTool,
+            };
+
+            configure?.Invoke(entry);
+
+            options.SetTool(registrationName, entry);
         });
     }
 
