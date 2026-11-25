@@ -178,6 +178,11 @@ For Azure OpenAI BYOK:
 | `IChatInteractionSettingsHandler` | `CopilotChatInteractionSettingsHandler` | Scoped | Adjusts chat settings for Copilot sessions |
 | `IOrchestrationContextBuilderHandler` | `CopilotOrchestrationContextHandler` | Scoped | Injects Copilot metadata into orchestration context |
 
+### Model requests through the host's transport
+
+The Copilot CLI makes its own model requests. Register a `CopilotRequestHandler` to have them sent through an
+`HttpClient` you choose; see [the host's own transport](../providers/index.md#copilot).
+
 ## Implementing `ICopilotCredentialStore`
 
 When using GitHub OAuth mode, the host application **must** provide an implementation of `ICopilotCredentialStore`. This interface is responsible for persisting and retrieving encrypted OAuth credentials per user.

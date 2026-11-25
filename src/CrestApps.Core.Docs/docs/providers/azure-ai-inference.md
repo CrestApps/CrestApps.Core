@@ -79,6 +79,7 @@ builder.Services
 | Constant | Value |
 |----------|-------|
 | `AzureAIInferenceConstants.ClientName` | `"AzureAIInference"` |
+| `AzureAIInferenceConstants.HttpClientName` | `"CrestApps.AzureAIInference"`, the `HttpClient` requests are sent through; see [the host's own transport](index.md#the-hosts-own-transport) |
 
 ## Use Cases
 

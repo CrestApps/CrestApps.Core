@@ -49,6 +49,7 @@ builder.Services.AddCoreAIConnectionSource("OpenAI", options =>
 | Constant | Value |
 |----------|-------|
 | `OpenAIConstants.ClientName` | `"OpenAI"` |
+| `OpenAIConstants.HttpClientName` | `"CrestApps.OpenAI"`, the `HttpClient` requests are sent through; see [the host's own transport](index.md#the-hosts-own-transport) |
 
 ## Capabilities
 

@@ -1,5 +1,6 @@
 using Azure;
 using Azure.AI.Inference;
+using Azure.Core.Pipeline;
 using Azure.Identity;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.Services;
@@ -15,13 +16,19 @@ namespace CrestApps.Core.AI.AzureAIInference.Services;
 /// </summary>
 public sealed class AzureAIInferenceClientProvider : AIClientProviderBase
 {
+    private readonly IHttpClientFactory _httpClientFactory;
+
     /// <summary>
     /// Initializes a new instance of the <see cref="AzureAIInferenceClientProvider"/> class.
     /// </summary>
     /// <param name="serviceProvider">The service provider.</param>
-    public AzureAIInferenceClientProvider(IServiceProvider serviceProvider)
+    /// <param name="httpClientFactory">The factory of the <see cref="AzureAIInferenceConstants.HttpClientName"/> client the SDK clients send their requests through.</param>
+    public AzureAIInferenceClientProvider(
+        IServiceProvider serviceProvider,
+        IHttpClientFactory httpClientFactory)
         : base(serviceProvider)
     {
+        _httpClientFactory = httpClientFactory;
     }
 
     /// <summary>
@@ -41,11 +48,12 @@ public sealed class AzureAIInferenceClientProvider : AIClientProviderBase
     {
         var endpoint = connection.GetEndpoint();
         var identityId = connection.GetIdentityId();
+        var options = CreateClientOptions();
         var client = connection.GetAzureAuthenticationType() switch
         {
-            AzureAuthenticationType.ApiKey => new ChatCompletionsClient(endpoint, new AzureKeyCredential(connection.GetApiKey())),
-            AzureAuthenticationType.ManagedIdentity => new ChatCompletionsClient(endpoint, new ManagedIdentityCredential(string.IsNullOrEmpty(identityId) ? ManagedIdentityId.SystemAssigned : ManagedIdentityId.FromUserAssignedClientId(identityId))),
-            AzureAuthenticationType.Default => new ChatCompletionsClient(endpoint, new DefaultAzureCredential()),
+            AzureAuthenticationType.ApiKey => new ChatCompletionsClient(endpoint, new AzureKeyCredential(connection.GetApiKey()), options),
+            AzureAuthenticationType.ManagedIdentity => new ChatCompletionsClient(endpoint, new ManagedIdentityCredential(string.IsNullOrEmpty(identityId) ? ManagedIdentityId.SystemAssigned : ManagedIdentityId.FromUserAssignedClientId(identityId)), options),
+            AzureAuthenticationType.Default => new ChatCompletionsClient(endpoint, new DefaultAzureCredential(), options),
             _ => throw new NotSupportedException("The provided authentication type is not supported."),
         };
 
@@ -61,11 +69,12 @@ public sealed class AzureAIInferenceClientProvider : AIClientProviderBase
     {
         var endpoint = connection.GetEndpoint();
         var identityId = connection.GetIdentityId();
+        var options = CreateClientOptions();
         var client = connection.GetAzureAuthenticationType() switch
         {
-            AzureAuthenticationType.ApiKey => new EmbeddingsClient(endpoint, new AzureKeyCredential(connection.GetApiKey())),
-            AzureAuthenticationType.ManagedIdentity => new EmbeddingsClient(endpoint, new ManagedIdentityCredential(string.IsNullOrEmpty(identityId) ? ManagedIdentityId.SystemAssigned : ManagedIdentityId.FromUserAssignedClientId(identityId))),
-            AzureAuthenticationType.Default => new EmbeddingsClient(endpoint, new DefaultAzureCredential()),
+            AzureAuthenticationType.ApiKey => new EmbeddingsClient(endpoint, new AzureKeyCredential(connection.GetApiKey()), options),
+            AzureAuthenticationType.ManagedIdentity => new EmbeddingsClient(endpoint, new ManagedIdentityCredential(string.IsNullOrEmpty(identityId) ? ManagedIdentityId.SystemAssigned : ManagedIdentityId.FromUserAssignedClientId(identityId)), options),
+            AzureAuthenticationType.Default => new EmbeddingsClient(endpoint, new DefaultAzureCredential(), options),
             _ => throw new NotSupportedException("The provided authentication type is not supported."),
         };
 
@@ -94,5 +103,13 @@ public sealed class AzureAIInferenceClientProvider : AIClientProviderBase
 #pragma warning restore MEAI001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
     {
         throw new NotSupportedException("Azure AI Inference does not currently support speech-to-text functionality.");
+    }
+
+    private AzureAIInferenceClientOptions CreateClientOptions()
+    {
+        return new AzureAIInferenceClientOptions
+        {
+            Transport = new HttpClientTransport(_httpClientFactory.CreateClient(AzureAIInferenceConstants.HttpClientName)),
+        };
     }
 }

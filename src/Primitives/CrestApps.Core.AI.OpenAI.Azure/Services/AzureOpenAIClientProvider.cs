@@ -16,6 +16,8 @@ public sealed class AzureOpenAIClientProvider : AIClientProviderBase
 {
     private readonly ILoggerFactory _loggerFactory;
     private readonly AzureClientOptions _azureClientSettings;
+    private readonly IHttpClientFactory _httpClientFactory;
+    private readonly AIProviderClientCache _clientCache;
 
     /// <summary>
     /// Gets provider name.
@@ -31,14 +33,20 @@ public sealed class AzureOpenAIClientProvider : AIClientProviderBase
     /// <param name="serviceProvider">The service provider.</param>
     /// <param name="loggerFactory">The logger factory.</param>
     /// <param name="azureClientSettings">The azure client settings.</param>
+    /// <param name="httpClientFactory">The factory of the <see cref="AzureOpenAIConstants.HttpClientName"/> client the SDK clients send their requests through.</param>
+    /// <param name="clientCache">The cache that holds the SDK clients this container has built.</param>
     public AzureOpenAIClientProvider(
         IServiceProvider serviceProvider,
         ILoggerFactory loggerFactory,
-        IOptionsSnapshot<AzureClientOptions> azureClientSettings)
+        IOptionsSnapshot<AzureClientOptions> azureClientSettings,
+        IHttpClientFactory httpClientFactory,
+        AIProviderClientCache clientCache)
         : base(serviceProvider)
     {
         _loggerFactory = loggerFactory;
         _azureClientSettings = azureClientSettings.Value;
+        _httpClientFactory = httpClientFactory;
+        _clientCache = clientCache;
     }
 
     /// <summary>
@@ -65,7 +73,7 @@ public sealed class AzureOpenAIClientProvider : AIClientProviderBase
 
         return new OpenAIReasoningRoutingChatClient(
             chatClient,
-            Responses.AzureResponsesClientFactory.Create(connection, deploymentName, _loggerFactory, _azureClientSettings));
+            Responses.AzureResponsesClientFactory.Create(connection, deploymentName, _loggerFactory, _azureClientSettings, _httpClientFactory, _clientCache));
     }
 
     /// <summary>
@@ -137,6 +145,6 @@ public sealed class AzureOpenAIClientProvider : AIClientProviderBase
 
     private AzureOpenAIClient GetClient(AIProviderConnectionEntry connection)
     {
-        return AzureOpenAIClientFactory.Create(connection, _loggerFactory, _azureClientSettings);
+        return AzureOpenAIClientFactory.Create(connection, _loggerFactory, _azureClientSettings, _httpClientFactory, _clientCache);
     }
 }

@@ -53,6 +53,7 @@ Point to your Ollama instance:
 | Constant | Value |
 |----------|-------|
 | `OllamaConstants.ClientName` | `"Ollama"` |
+| `OllamaConstants.HttpClientName` | `"CrestApps.Ollama"`, the `HttpClient` requests are sent through; see [the host's own transport](index.md#the-hosts-own-transport) |
 
 ## Use Cases
 

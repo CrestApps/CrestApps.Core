@@ -2,6 +2,7 @@
 using CrestApps.Core.AI.Deployments;
 using CrestApps.Core.AI.Models;
 using CrestApps.Core.AI.OpenAI;
+using CrestApps.Core.AI.OpenAI.Azure;
 using CrestApps.Core.AI.OpenAI.Azure.Models;
 using CrestApps.Core.AI.OpenAI.Azure.Services;
 using CrestApps.Core.AI.OpenAI.Services;
@@ -20,7 +21,6 @@ namespace CrestApps.Core.Tests.Core.Services;
 /// Verifies that chat requests combining function tools with a reasoning effort are sent to the Responses API,
 /// which reasoning models such as gpt-6-luna require, while every other request stays on Chat Completions.
 /// </summary>
-[Collection(AzureOpenAIClientCacheCollection.Name)]
 public sealed class OpenAIReasoningRoutingChatClientTests
 {
     [Fact]
@@ -229,7 +229,7 @@ public sealed class OpenAIReasoningRoutingChatClientTests
     public async Task OpenAI_GetChatClientAsync_RoutesOnlyOnOpenAIEndpointUnlessChatApiIsSet(string endpoint, string chatApi, bool expectRouting)
     {
         // Arrange
-        var provider = new OpenAIClientProvider(new ServiceCollection().BuildServiceProvider());
+        var provider = ActivatorUtilities.CreateInstance<OpenAIClientProvider>(new ServiceCollection().AddCoreAIOpenAI().BuildServiceProvider());
         var values = new Dictionary<string, object>
         {
             ["ApiKey"] = "sk-test-key",
@@ -263,7 +263,7 @@ public sealed class OpenAIReasoningRoutingChatClientTests
         // AzureOpenAIClient.GetResponsesClient() throws MissingMethodException with the pinned Azure.AI.OpenAI, so
         // creating the chat client also guards against routing the Responses client back through the SDK too early.
         var options = Mock.Of<IOptionsSnapshot<AzureClientOptions>>(snapshot => snapshot.Value == new AzureClientOptions());
-        var provider = new AzureOpenAIClientProvider(new ServiceCollection().BuildServiceProvider(), NullLoggerFactory.Instance, options);
+        var provider = ActivatorUtilities.CreateInstance<AzureOpenAIClientProvider>(new ServiceCollection().AddCoreAIAzureOpenAI().BuildServiceProvider(), NullLoggerFactory.Instance, options);
         var values = new Dictionary<string, object>
         {
             ["Endpoint"] = "https://unit-test.openai.azure.com/",

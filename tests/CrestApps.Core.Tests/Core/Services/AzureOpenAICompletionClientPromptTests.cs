@@ -1,12 +1,9 @@
-using System.ClientModel;
-using System.ClientModel.Primitives;
 using System.Collections;
-using System.Collections.Concurrent;
 using System.Net;
 using System.Reflection;
 using System.Text;
 using System.Text.Json;
-using Azure.AI.OpenAI;
+using CrestApps.Core.AI;
 using CrestApps.Core.AI.Clients;
 using CrestApps.Core.AI.Completions;
 using CrestApps.Core.AI.Connections;
@@ -36,22 +33,8 @@ using TextContent = Microsoft.Extensions.AI.TextContent;
 namespace CrestApps.Core.Tests.Core.Services;
 
 /// <summary>
-/// Prevents tests that create Azure OpenAI clients from running in parallel, because they share the static client
-/// cache of <see cref="AzureOpenAIClientFactory"/>.
-/// </summary>
-[CollectionDefinition(Name, DisableParallelization = true)]
-public sealed class AzureOpenAIClientCacheCollection
-{
-    /// <summary>
-    /// The collection name.
-    /// </summary>
-    public const string Name = "AzureOpenAIClientCache";
-}
-
-/// <summary>
 /// Verifies the Azure OpenAI adapter's exact raw-message conversion and history-selection contract.
 /// </summary>
-[Collection(AzureOpenAIClientCacheCollection.Name)]
 public sealed class AzureOpenAICompletionClientPromptTests
 {
     private const string ApiKey = "test-api-key";
@@ -64,9 +47,6 @@ public sealed class AzureOpenAICompletionClientPromptTests
 
     private static readonly Func<AICompletionContext, List<SdkChatMessage>, List<SdkChatMessage>> _getPrompts =
         CreateGetPromptsDelegate();
-
-    private static readonly ConcurrentDictionary<string, AzureOpenAIClient> _clientCache =
-        GetClientCache();
 
     /// <summary>
     /// Verifies that a positive count keeps that many converted messages (one included), and that a missing
@@ -1182,13 +1162,18 @@ public sealed class AzureOpenAICompletionClientPromptTests
         string streamingResponse = null,
         string completionResponse = null)
     {
-        AzureOpenAIClientFactory.ClearCache();
-
         var endpoint = new Uri("https://unit.test/");
         var handler = new RecordingHttpMessageHandler(
             streaming ? streamingResponse ?? CreateStreamingResponse() : completionResponse ?? CreateCompletionResponse(),
             streaming ? "text/event-stream" : "application/json");
-        var httpClient = new HttpClient(handler);
+        var serviceCollection = new ServiceCollection();
+
+        // The host's own transport: every request the SDK client sends goes to the recording handler.
+        serviceCollection
+            .AddCoreAIProviderHttpClient(AzureOpenAIConstants.HttpClientName)
+            .ConfigurePrimaryHttpMessageHandler(() => handler);
+
+        var services = serviceCollection.BuildServiceProvider();
         var azureOptions = new AzureClientOptions
         {
             EnableDefaultRetryPolicy = false,
@@ -1209,24 +1194,6 @@ public sealed class AzureOpenAICompletionClientPromptTests
         {
             connection.Properties["ChatApi"] = chatApi;
         }
-
-        var connectionEntry = AIProviderConnectionEntryFactory.Create(connection, []);
-
-        _ = AzureOpenAIClientFactory.Create(
-            connectionEntry,
-            NullLoggerFactory.Instance,
-            azureOptions);
-
-        var cacheKey = Assert.Single(_clientCache.Keys);
-        var sdkOptions = new AzureOpenAIClientOptions
-        {
-            Transport = new HttpClientPipelineTransport(httpClient),
-        };
-
-        _clientCache[cacheKey] = new AzureOpenAIClient(
-            endpoint,
-            new ApiKeyCredential(ApiKey),
-            sdkOptions);
 
         var deployment = new AIDeployment
         {
@@ -1258,7 +1225,6 @@ public sealed class AzureOpenAICompletionClientPromptTests
             .SetupGet(options => options.Value)
             .Returns(azureOptions);
 
-        var services = new ServiceCollection().BuildServiceProvider();
         var client = new AzureOpenAICompletionClient(
             services,
             NullLoggerFactory.Instance,
@@ -1273,9 +1239,11 @@ public sealed class AzureOpenAICompletionClientPromptTests
             connectionStore.Object,
             Mock.Of<IDataProtectionProvider>(),
             optionsSnapshot.Object,
-            clientFactory ?? Mock.Of<IAIClientFactory>());
+            clientFactory ?? Mock.Of<IAIClientFactory>(),
+            services.GetRequiredService<IHttpClientFactory>(),
+            new AIProviderClientCache());
 
-        return new CompletionClientContext(client, handler, httpClient, services);
+        return new CompletionClientContext(client, handler, services);
     }
 
     /// <summary>
@@ -1450,20 +1418,6 @@ public sealed class AzureOpenAICompletionClientPromptTests
             ?? throw new InvalidOperationException("Unable to find the prompt-selection helper.");
 
         return method.CreateDelegate<Func<AICompletionContext, List<SdkChatMessage>, List<SdkChatMessage>>>();
-    }
-
-    /// <summary>
-    /// Gets the Azure client factory's cache for test transport substitution.
-    /// </summary>
-    /// <returns>The shared client cache.</returns>
-    private static ConcurrentDictionary<string, AzureOpenAIClient> GetClientCache()
-    {
-        var field = typeof(AzureOpenAIClientFactory).GetField(
-            "_clientCache",
-            BindingFlags.NonPublic | BindingFlags.Static)
-            ?? throw new InvalidOperationException("Unable to find the Azure OpenAI client cache.");
-
-        return (ConcurrentDictionary<string, AzureOpenAIClient>)field.GetValue(null);
     }
 
     /// <summary>
@@ -2000,7 +1954,6 @@ public sealed class AzureOpenAICompletionClientPromptTests
     /// </summary>
     private sealed class CompletionClientContext : IDisposable
     {
-        private readonly HttpClient _httpClient;
         private readonly ServiceProvider _services;
 
         /// <summary>
@@ -2008,17 +1961,14 @@ public sealed class AzureOpenAICompletionClientPromptTests
         /// </summary>
         /// <param name="client">The completion client.</param>
         /// <param name="handler">The recording handler.</param>
-        /// <param name="httpClient">The HTTP client.</param>
         /// <param name="services">The service provider.</param>
         public CompletionClientContext(
             AzureOpenAICompletionClient client,
             RecordingHttpMessageHandler handler,
-            HttpClient httpClient,
             ServiceProvider services)
         {
             Client = client;
             Handler = handler;
-            _httpClient = httpClient;
             _services = services;
         }
 
@@ -2033,12 +1983,10 @@ public sealed class AzureOpenAICompletionClientPromptTests
         public RecordingHttpMessageHandler Handler { get; }
 
         /// <summary>
-        /// Releases transport resources and clears the shared client cache.
+        /// Releases the service provider and the transport it owns.
         /// </summary>
         public void Dispose()
         {
-            AzureOpenAIClientFactory.ClearCache();
-            _httpClient.Dispose();
             _services.Dispose();
         }
     }

@@ -26,6 +26,7 @@ public sealed class MvcClaudeOptionsConfigurationTests
 
             var services = new ServiceCollection();
             services.AddLogging();
+            services.AddHttpClient();
             services.AddSingleton(settingsStore);
             services.AddSingleton<IDataProtectionProvider>(dataProtectionProvider);
             services.AddOptions();

@@ -40,6 +40,8 @@ public sealed partial class AzureOpenAICompletionClient : AICompletionServiceBas
     private readonly IDataProtectionProvider _dataProtectionProvider;
     private readonly AzureClientOptions _azureClientOptions;
     private readonly IAIClientFactory _clientFactory;
+    private readonly IHttpClientFactory _httpClientFactory;
+    private readonly AIProviderClientCache _clientCache;
     private readonly ILogger<AzureOpenAICompletionClient> _logger;
 
     /// <summary>
@@ -56,6 +58,8 @@ public sealed partial class AzureOpenAICompletionClient : AICompletionServiceBas
     /// <param name="dataProtectionProvider">The data protection provider.</param>
     /// <param name="azureClientOptions">The azure client options.</param>
     /// <param name="clientFactory">The AI client factory, used for requests that go to the Responses API.</param>
+    /// <param name="httpClientFactory">The factory of the <see cref="AzureOpenAIConstants.HttpClientName"/> client the SDK client sends its requests through.</param>
+    /// <param name="clientCache">The cache that holds the SDK clients this container has built.</param>
     public AzureOpenAICompletionClient(
         IServiceProvider serviceProvider,
         ILoggerFactory loggerFactory,
@@ -67,7 +71,9 @@ public sealed partial class AzureOpenAICompletionClient : AICompletionServiceBas
         IAIProviderConnectionStore connectionStore,
         IDataProtectionProvider dataProtectionProvider,
         IOptionsSnapshot<AzureClientOptions> azureClientOptions,
-        IAIClientFactory clientFactory)
+        IAIClientFactory clientFactory,
+        IHttpClientFactory httpClientFactory,
+        AIProviderClientCache clientCache)
         : base(aiTemplateService, deploymentManager)
     {
         _serviceProvider = serviceProvider;
@@ -79,6 +85,8 @@ public sealed partial class AzureOpenAICompletionClient : AICompletionServiceBas
         _dataProtectionProvider = dataProtectionProvider;
         _azureClientOptions = azureClientOptions.Value;
         _clientFactory = clientFactory;
+        _httpClientFactory = httpClientFactory;
+        _clientCache = clientCache;
         _logger = loggerFactory.CreateLogger<AzureOpenAICompletionClient>();
     }
 
@@ -886,7 +894,7 @@ omit optional fields, or split the operation into multiple smaller calls.
 
     private AzureOpenAIClient GetChatClient(AIProviderConnectionEntry connection)
     {
-        return AzureOpenAIClientFactory.Create(connection, _loggerFactory, _azureClientOptions);
+        return AzureOpenAIClientFactory.Create(connection, _loggerFactory, _azureClientOptions, _httpClientFactory, _clientCache);
     }
 
     /// <summary>
