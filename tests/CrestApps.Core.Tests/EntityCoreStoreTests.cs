@@ -13,6 +13,7 @@ using CrestApps.Core.Infrastructure.Indexing;
 using CrestApps.Core.Infrastructure.Indexing.Models;
 using CrestApps.Core.Models;
 using CrestApps.Core.Services;
+using CrestApps.Core.Tests.Support;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -507,202 +508,170 @@ public sealed class EntityCoreStoreTests
     [Fact]
     public async Task Initialize_entity_core_schema_async_adds_missing_tables_to_existing_database()
     {
-        var databasePath = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.db");
+        using var database = new TemporarySqliteDatabase();
 
-        try
+        await using (var connection = new SqliteConnection(database.ConnectionString))
         {
-            await using (var connection = new SqliteConnection($"Data Source={databasePath}"))
-            {
-                await connection.OpenAsync(TestContext.Current.CancellationToken);
+            await connection.OpenAsync(TestContext.Current.CancellationToken);
 
-                var command = connection.CreateCommand();
-                command.CommandText =
-                    """
-                    CREATE TABLE "CA_CatalogRecords" (
-                        "EntityType" TEXT NOT NULL,
-                        "ItemId" TEXT NOT NULL,
-                        "Payload" TEXT NOT NULL,
-                        CONSTRAINT "PK_CA_CatalogRecords" PRIMARY KEY ("EntityType", "ItemId")
-                    );
-                    CREATE TABLE "CA_AIChatSessions" (
-                        "SessionId" TEXT NOT NULL,
-                        "Payload" TEXT NOT NULL,
-                        CONSTRAINT "PK_CA_AIChatSessions" PRIMARY KEY ("SessionId")
-                    );
-                    """;
+            var command = connection.CreateCommand();
+            command.CommandText =
+                """
+                CREATE TABLE "CA_CatalogRecords" (
+                    "EntityType" TEXT NOT NULL,
+                    "ItemId" TEXT NOT NULL,
+                    "Payload" TEXT NOT NULL,
+                    CONSTRAINT "PK_CA_CatalogRecords" PRIMARY KEY ("EntityType", "ItemId")
+                );
+                CREATE TABLE "CA_AIChatSessions" (
+                    "SessionId" TEXT NOT NULL,
+                    "Payload" TEXT NOT NULL,
+                    CONSTRAINT "PK_CA_AIChatSessions" PRIMARY KEY ("SessionId")
+                );
+                """;
 
-                await command.ExecuteNonQueryAsync(TestContext.Current.CancellationToken);
-            }
-
-            var tableNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            var services = CreateEntityCoreServices(databasePath);
-
-            await using (var provider = services.BuildServiceProvider())
-            {
-                await provider.InitializeEntityCoreSchemaAsync();
-
-                await using var verificationConnection = new SqliteConnection($"Data Source={databasePath}");
-                await verificationConnection.OpenAsync(TestContext.Current.CancellationToken);
-
-                var query = verificationConnection.CreateCommand();
-                query.CommandText = "SELECT name FROM sqlite_master WHERE type = 'table';";
-
-                await using var reader = await query.ExecuteReaderAsync(TestContext.Current.CancellationToken);
-
-                while (await reader.ReadAsync(TestContext.Current.CancellationToken))
-                {
-                    tableNames.Add(reader.GetString(0));
-                }
-            }
-
-            Assert.Contains("CA_Documents", tableNames);
-            Assert.Contains("CA_AIChatSessionEvents", tableNames);
-            Assert.Contains("CA_AICompletionUsage", tableNames);
-            Assert.Contains("CA_AIChatSessionExtractedData", tableNames);
+            await command.ExecuteNonQueryAsync(TestContext.Current.CancellationToken);
         }
-        finally
+
+        var tableNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var services = CreateEntityCoreServices(database.ConnectionString);
+
+        await using (var provider = services.BuildServiceProvider())
         {
-            if (File.Exists(databasePath))
+            await provider.InitializeEntityCoreSchemaAsync();
+
+            await using var verificationConnection = new SqliteConnection(database.ConnectionString);
+            await verificationConnection.OpenAsync(TestContext.Current.CancellationToken);
+
+            var query = verificationConnection.CreateCommand();
+            query.CommandText = "SELECT name FROM sqlite_master WHERE type = 'table';";
+
+            await using var reader = await query.ExecuteReaderAsync(TestContext.Current.CancellationToken);
+
+            while (await reader.ReadAsync(TestContext.Current.CancellationToken))
             {
-                try
-                {
-                    File.Delete(databasePath);
-                }
-                catch (IOException)
-                {
-                }
+                tableNames.Add(reader.GetString(0));
             }
         }
+
+        Assert.Contains("CA_Documents", tableNames);
+        Assert.Contains("CA_AIChatSessionEvents", tableNames);
+        Assert.Contains("CA_AICompletionUsage", tableNames);
+        Assert.Contains("CA_AIChatSessionExtractedData", tableNames);
     }
 
     [Fact]
     public async Task Initialize_entity_core_schema_async_migrates_legacy_tables_to_document_schema()
     {
-        var databasePath = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.db");
+        using var database = new TemporarySqliteDatabase();
 
-        try
+        await using (var connection = new SqliteConnection(database.ConnectionString))
         {
-            await using (var connection = new SqliteConnection($"Data Source={databasePath}"))
-            {
-                await connection.OpenAsync(TestContext.Current.CancellationToken);
+            await connection.OpenAsync(TestContext.Current.CancellationToken);
 
-                var command = connection.CreateCommand();
-                command.CommandText =
-                    """
-                    CREATE TABLE "CA_CatalogRecords" (
-                        "EntityType" TEXT NOT NULL,
-                        "ItemId" TEXT NOT NULL,
-                        "Payload" TEXT NOT NULL,
-                        "Name" TEXT NULL,
-                        "DisplayText" TEXT NULL,
-                        "Source" TEXT NULL,
-                        "SessionId" TEXT NULL,
-                        "ChatInteractionId" TEXT NULL,
-                        "ReferenceId" TEXT NULL,
-                        "ReferenceType" TEXT NULL,
-                        "AIDocumentId" TEXT NULL,
-                        "UserId" TEXT NULL,
-                        "Type" TEXT NULL,
-                        "CreatedUtc" TEXT NULL,
-                        "UpdatedUtc" TEXT NULL,
-                        CONSTRAINT "PK_CA_CatalogRecords" PRIMARY KEY ("EntityType", "ItemId")
-                    );
-                    CREATE TABLE "CA_AIChatSessions" (
-                        "SessionId" TEXT NOT NULL,
-                        "Payload" TEXT NOT NULL,
-                        "Title" TEXT NULL,
-                        "ProfileId" TEXT NULL,
-                        "ProfileName" TEXT NULL,
-                        "UserId" TEXT NULL,
-                        "CreatedUtc" TEXT NULL,
-                        CONSTRAINT "PK_CA_AIChatSessions" PRIMARY KEY ("SessionId")
-                    );
-                    INSERT INTO "CA_CatalogRecords" ("EntityType","ItemId","Payload","Name","Type")
-                    VALUES ('CrestApps.Core.AI.Profiles.AIProfile','item1','{"Name":"test-profile"}','test-profile','Chat');
-                    INSERT INTO "CA_AIChatSessions" ("SessionId","Payload","Title","ProfileId")
-                    VALUES ('sess1','{"Title":"Hello"}','Hello','prof1');
-                    """;
+            var command = connection.CreateCommand();
+            command.CommandText =
+                """
+                CREATE TABLE "CA_CatalogRecords" (
+                    "EntityType" TEXT NOT NULL,
+                    "ItemId" TEXT NOT NULL,
+                    "Payload" TEXT NOT NULL,
+                    "Name" TEXT NULL,
+                    "DisplayText" TEXT NULL,
+                    "Source" TEXT NULL,
+                    "SessionId" TEXT NULL,
+                    "ChatInteractionId" TEXT NULL,
+                    "ReferenceId" TEXT NULL,
+                    "ReferenceType" TEXT NULL,
+                    "AIDocumentId" TEXT NULL,
+                    "UserId" TEXT NULL,
+                    "Type" TEXT NULL,
+                    "CreatedUtc" TEXT NULL,
+                    "UpdatedUtc" TEXT NULL,
+                    CONSTRAINT "PK_CA_CatalogRecords" PRIMARY KEY ("EntityType", "ItemId")
+                );
+                CREATE TABLE "CA_AIChatSessions" (
+                    "SessionId" TEXT NOT NULL,
+                    "Payload" TEXT NOT NULL,
+                    "Title" TEXT NULL,
+                    "ProfileId" TEXT NULL,
+                    "ProfileName" TEXT NULL,
+                    "UserId" TEXT NULL,
+                    "CreatedUtc" TEXT NULL,
+                    CONSTRAINT "PK_CA_AIChatSessions" PRIMARY KEY ("SessionId")
+                );
+                INSERT INTO "CA_CatalogRecords" ("EntityType","ItemId","Payload","Name","Type")
+                VALUES ('CrestApps.Core.AI.Profiles.AIProfile','item1','{"Name":"test-profile"}','test-profile','Chat');
+                INSERT INTO "CA_AIChatSessions" ("SessionId","Payload","Title","ProfileId")
+                VALUES ('sess1','{"Title":"Hello"}','Hello','prof1');
+                """;
 
-                await command.ExecuteNonQueryAsync(TestContext.Current.CancellationToken);
-            }
-
-            var services = CreateEntityCoreServices(databasePath);
-
-            await using (var provider = services.BuildServiceProvider())
-            {
-                await provider.InitializeEntityCoreSchemaAsync();
-
-                await using var verificationConnection = new SqliteConnection($"Data Source={databasePath}");
-                await verificationConnection.OpenAsync(TestContext.Current.CancellationToken);
-
-                var hasDocuments = false;
-                var catalogHasDocumentId = false;
-                var catalogHasNoPayload = true;
-                var sessionHasDocumentId = false;
-                var documentCount = 0L;
-
-                var tableQuery = verificationConnection.CreateCommand();
-                tableQuery.CommandText = "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='CA_Documents';";
-                hasDocuments = Convert.ToInt64(await tableQuery.ExecuteScalarAsync(TestContext.Current.CancellationToken)) == 1;
-
-                var catalogColQuery = verificationConnection.CreateCommand();
-                catalogColQuery.CommandText = "PRAGMA table_info('CA_CatalogRecords');";
-
-                await using (var colReader = await catalogColQuery.ExecuteReaderAsync(TestContext.Current.CancellationToken))
-                {
-                    while (await colReader.ReadAsync(TestContext.Current.CancellationToken))
-                    {
-                        var columnName = colReader.GetString(1);
-
-                        if (columnName == "DocumentId")
-                        {
-                            catalogHasDocumentId = true;
-                        }
-
-                        if (columnName == "Payload")
-                        {
-                            catalogHasNoPayload = false;
-                        }
-                    }
-                }
-
-                var sessionColQuery = verificationConnection.CreateCommand();
-                sessionColQuery.CommandText = "PRAGMA table_info('CA_AIChatSessions');";
-
-                await using (var colReader = await sessionColQuery.ExecuteReaderAsync(TestContext.Current.CancellationToken))
-                {
-                    while (await colReader.ReadAsync(TestContext.Current.CancellationToken))
-                    {
-                        if (colReader.GetString(1) == "DocumentId")
-                        {
-                            sessionHasDocumentId = true;
-                        }
-                    }
-                }
-
-                var docCountQuery = verificationConnection.CreateCommand();
-                docCountQuery.CommandText = "SELECT COUNT(*) FROM CA_Documents;";
-                documentCount = Convert.ToInt64(await docCountQuery.ExecuteScalarAsync(TestContext.Current.CancellationToken));
-
-                Assert.True(hasDocuments, "CA_Documents table should exist after migration.");
-                Assert.True(catalogHasDocumentId, "CA_CatalogRecords should have DocumentId column.");
-                Assert.True(catalogHasNoPayload, "CA_CatalogRecords should not have Payload column after migration.");
-                Assert.True(sessionHasDocumentId, "CA_AIChatSessions should have DocumentId column.");
-                Assert.Equal(2, documentCount);
-            }
+            await command.ExecuteNonQueryAsync(TestContext.Current.CancellationToken);
         }
-        finally
+
+        var services = CreateEntityCoreServices(database.ConnectionString);
+
+        await using (var provider = services.BuildServiceProvider())
         {
-            if (File.Exists(databasePath))
+            await provider.InitializeEntityCoreSchemaAsync();
+
+            await using var verificationConnection = new SqliteConnection(database.ConnectionString);
+            await verificationConnection.OpenAsync(TestContext.Current.CancellationToken);
+
+            var hasDocuments = false;
+            var catalogHasDocumentId = false;
+            var catalogHasNoPayload = true;
+            var sessionHasDocumentId = false;
+            var documentCount = 0L;
+
+            var tableQuery = verificationConnection.CreateCommand();
+            tableQuery.CommandText = "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='CA_Documents';";
+            hasDocuments = Convert.ToInt64(await tableQuery.ExecuteScalarAsync(TestContext.Current.CancellationToken)) == 1;
+
+            var catalogColQuery = verificationConnection.CreateCommand();
+            catalogColQuery.CommandText = "PRAGMA table_info('CA_CatalogRecords');";
+
+            await using (var colReader = await catalogColQuery.ExecuteReaderAsync(TestContext.Current.CancellationToken))
             {
-                try
+                while (await colReader.ReadAsync(TestContext.Current.CancellationToken))
                 {
-                    File.Delete(databasePath);
-                }
-                catch (IOException)
-                {
+                    var columnName = colReader.GetString(1);
+
+                    if (columnName == "DocumentId")
+                    {
+                        catalogHasDocumentId = true;
+                    }
+
+                    if (columnName == "Payload")
+                    {
+                        catalogHasNoPayload = false;
+                    }
                 }
             }
+
+            var sessionColQuery = verificationConnection.CreateCommand();
+            sessionColQuery.CommandText = "PRAGMA table_info('CA_AIChatSessions');";
+
+            await using (var colReader = await sessionColQuery.ExecuteReaderAsync(TestContext.Current.CancellationToken))
+            {
+                while (await colReader.ReadAsync(TestContext.Current.CancellationToken))
+                {
+                    if (colReader.GetString(1) == "DocumentId")
+                    {
+                        sessionHasDocumentId = true;
+                    }
+                }
+            }
+
+            var docCountQuery = verificationConnection.CreateCommand();
+            docCountQuery.CommandText = "SELECT COUNT(*) FROM CA_Documents;";
+            documentCount = Convert.ToInt64(await docCountQuery.ExecuteScalarAsync(TestContext.Current.CancellationToken));
+
+            Assert.True(hasDocuments, "CA_Documents table should exist after migration.");
+            Assert.True(catalogHasDocumentId, "CA_CatalogRecords should have DocumentId column.");
+            Assert.True(catalogHasNoPayload, "CA_CatalogRecords should not have Payload column after migration.");
+            Assert.True(sessionHasDocumentId, "CA_AIChatSessions should have DocumentId column.");
+            Assert.Equal(2, documentCount);
         }
     }
 
@@ -996,13 +965,13 @@ public sealed class EntityCoreStoreTests
 
     private sealed class EntityCoreTestHarness : IAsyncDisposable
     {
-        private readonly string _databasePath;
+        private readonly TemporarySqliteDatabase _database;
 
         private EntityCoreTestHarness(
-            string databasePath,
+            TemporarySqliteDatabase database,
             ServiceProvider services)
         {
-            _databasePath = databasePath;
+            _database = database;
             Services = services;
         }
 
@@ -1010,34 +979,24 @@ public sealed class EntityCoreStoreTests
 
         public static async Task<EntityCoreTestHarness> CreateAsync(Action<EntityCoreDataStoreOptions> configureStore = null)
         {
-            var databasePath = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.db");
-            var services = CreateEntityCoreServices(databasePath, configureStore);
+            var database = new TemporarySqliteDatabase();
+            var services = CreateEntityCoreServices(database.ConnectionString, configureStore);
 
             var provider = services.BuildServiceProvider();
             await provider.InitializeEntityCoreSchemaAsync();
 
-            return new EntityCoreTestHarness(databasePath, provider);
+            return new EntityCoreTestHarness(database, provider);
         }
 
         public async ValueTask DisposeAsync()
         {
             await Services.DisposeAsync();
-
-            if (File.Exists(_databasePath))
-            {
-                try
-                {
-                    File.Delete(_databasePath);
-                }
-                catch (IOException)
-                {
-                }
-            }
+            _database.Dispose();
         }
     }
 
     private static ServiceCollection CreateEntityCoreServices(
-        string databasePath,
+        string connectionString,
         Action<EntityCoreDataStoreOptions> configureStore = null)
     {
         var services = new ServiceCollection();
@@ -1047,7 +1006,7 @@ public sealed class EntityCoreStoreTests
         services.AddSingleton(TimeProvider.System);
         services.AddSingleton<IConfiguration>(new ConfigurationBuilder().Build());
         services.AddCoreAIServices();
-        services.AddCoreEntityCoreDataStore(options => options.UseSqlite($"Data Source={databasePath}"), store =>
+        services.AddCoreEntityCoreDataStore(options => options.UseSqlite(connectionString), store =>
         {
             store.TablePrefix = "CA_";
             configureStore?.Invoke(store);

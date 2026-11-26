@@ -537,7 +537,7 @@ public sealed partial class InternalCanaryRule : IPromptSecurityRule
     [GeneratedRegex(
         @"\b(?:CANARY_TOKEN_ABC123|internal-secret-marker)\b",
         RegexOptions.IgnoreCase | RegexOptions.CultureInvariant,
-        matchTimeoutMilliseconds: 100)]
+        matchTimeoutMilliseconds: 1000)]
     private static partial Regex CanaryRegex();
 }
 ```
@@ -578,7 +578,7 @@ Your rule will be automatically picked up by the `PromptInjectionPatternDetector
 
 ### Best practices for custom rules
 
-1. **Always set a regex timeout** to prevent catastrophic backtracking.
+1. **Always set a regex timeout** to prevent catastrophic backtracking. Allow about a second, as the built-in rules do: the timeout counts wall-clock time, including the first match compiling the pattern and any wait for a garbage collection or a busy CPU, so a budget of a few hundred milliseconds can fail a safe prompt on a loaded host.
 2. **Evaluate against `NormalizedInput`** first. Only fall back to `FoldedInput` if you expect homoglyph attacks.
 3. **Choose an appropriate score.** Low confidence rules (score 8–12) contribute to aggregate detection. High confidence rules (score 20+) can trigger a block on their own when they exceed the threshold.
 4. **Use category tags** to classify your detection for telemetry and filtering.

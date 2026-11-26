@@ -22,6 +22,6 @@ internal sealed partial class AgentOrchestrationDiscoveryRule : RegexPromptSecur
     [GeneratedRegex(
         @"\b(?:list|enumerate|show|reveal|which|what)\b.{0,80}\b(?:agents?|sub[-\s]?agents?|orchestrators?|delegates?|delegation\s+plan|routing\s+logic|handoff\s+rules)\b|\b(?:how\s+do\s+you\s+(?:delegate|route|orchestrate)|which\s+agent\s+handles)\b",
         RegexOptions.IgnoreCase | RegexOptions.CultureInvariant,
-        matchTimeoutMilliseconds: 200)]
+        matchTimeoutMilliseconds: PromptSecurityRegex.MatchTimeoutMilliseconds)]
     private static partial Regex AgentOrchestrationDiscoveryRegex();
 }

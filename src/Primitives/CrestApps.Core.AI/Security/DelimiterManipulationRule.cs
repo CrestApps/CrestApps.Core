@@ -22,6 +22,6 @@ internal sealed partial class DelimiterManipulationRule : RegexPromptSecurityRul
     [GeneratedRegex(
         @"(?:<\|(?:endof(?:text|prompt|turn)|im_(?:start|end|sep)|user_input_(?:begin|end))\|>|---+\s*(?:END|BEGIN)\s+(?:SYSTEM|USER|ASSISTANT)\s*---+|={3,}\s*(?:SYSTEM|INSTRUCTIONS?|PROMPT)\s*={3,}|\[\[(?:SYSTEM|INSTRUCTIONS?|HIDDEN)\]\])",
         RegexOptions.IgnoreCase | RegexOptions.CultureInvariant,
-        matchTimeoutMilliseconds: 200)]
+        matchTimeoutMilliseconds: PromptSecurityRegex.MatchTimeoutMilliseconds)]
     private static partial Regex DelimiterManipulationRegex();
 }

@@ -22,6 +22,6 @@ internal sealed partial class HiddenContextDisclosureRule : RegexPromptSecurityR
     [GeneratedRegex(
         @"\b(?:show|reveal|print|dump|expose|quote|repeat)\b.{0,60}\b(?:hidden\s+context|scratchpad|reasoning|chain\s+of\s+thought|internal\s+notes|hidden\s+notes|developer\s+notes|private\s+instructions?|unseen\s+context)\b|\b(?:what|which)\s+(?:hidden|private|internal)\s+(?:notes|reasoning|context|constraints?)\s+(?:do\s+you\s+have|were\s+provided)\b",
         RegexOptions.IgnoreCase | RegexOptions.CultureInvariant,
-        matchTimeoutMilliseconds: 200)]
+        matchTimeoutMilliseconds: PromptSecurityRegex.MatchTimeoutMilliseconds)]
     private static partial Regex HiddenContextDisclosureRegex();
 }

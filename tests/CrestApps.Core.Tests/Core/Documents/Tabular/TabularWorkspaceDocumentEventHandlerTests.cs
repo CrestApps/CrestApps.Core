@@ -159,10 +159,10 @@ public sealed class TabularWorkspaceDocumentEventHandlerTests
     public async Task RemovedAsync_WhenAnEarlierConnectionLeftTheDatabaseReadOnly_StillDropsTheDocumentTables()
     {
         var basePath = CreateTemporaryBasePath();
+        var databasePath = CreateWorkspaceDatabase(basePath, "session-1", "doc-1", "sales");
 
         try
         {
-            var databasePath = CreateWorkspaceDatabase(basePath, "session-1", "doc-1", "sales");
             AddWorkspaceTable(databasePath, "doc-2", "budget");
 
             // The workspace keeps its own connection in query_only mode between write windows. A
@@ -189,6 +189,12 @@ public sealed class TabularWorkspaceDocumentEventHandlerTests
         }
         finally
         {
+            // Closes the connection the test left in the pool, so the database file can be deleted.
+            using (var pooledConnection = new SqliteConnection($"Data Source={databasePath}"))
+            {
+                SqliteConnection.ClearPool(pooledConnection);
+            }
+
             TryDeleteDirectory(basePath);
         }
     }

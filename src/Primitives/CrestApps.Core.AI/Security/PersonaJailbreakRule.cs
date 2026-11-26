@@ -22,6 +22,6 @@ internal sealed partial class PersonaJailbreakRule : RegexPromptSecurityRuleBase
     [GeneratedRegex(
         @"\b(?:you\s+are\s+now|from\s+now\s+on\s+you\s+(?:are|will|must)|act\s+as|pretend\s+(?:to\s+be|you\s+are)|roleplay\s+as)\b.{0,60}\b(?:unrestricted|unfiltered|developer|administrator|admin|root|sudo|god|anti.?assistant|DAN|jailbreak)\b|\b(?:enable|activate|enter|switch\s+to)\s+(?:developer|admin|root|sudo|god|unrestricted|anti.?assistant|DAN)\s*(?:mode)?\b|\byou\s+have\s+no\s+(?:restrictions?|guardrails?|rules?|filters?|limitations?)\b",
         RegexOptions.IgnoreCase | RegexOptions.CultureInvariant,
-        matchTimeoutMilliseconds: 200)]
+        matchTimeoutMilliseconds: PromptSecurityRegex.MatchTimeoutMilliseconds)]
     private static partial Regex PersonaJailbreakRegex();
 }

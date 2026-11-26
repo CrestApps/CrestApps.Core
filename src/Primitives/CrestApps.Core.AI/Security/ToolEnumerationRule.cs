@@ -21,6 +21,6 @@ internal sealed partial class ToolEnumerationRule : RegexPromptSecurityRuleBase
     [GeneratedRegex(
         @"\b(?:list|enumerate|show|reveal|describe|what\s+are|which)\b.{0,80}\b(?:(?:available|internal)\s+)?(?:tools?|functions?|capabilities|plugins?|apis?|commands?|endpoints?)\b|\b(?:what|which)\s+(?:tools?|functions?|capabilities|apis?)\s+(?:do\s+you\s+have|are\s+available|can\s+you\s+(?:use|call|access))\b",
         RegexOptions.IgnoreCase | RegexOptions.CultureInvariant,
-        matchTimeoutMilliseconds: 200)]
+        matchTimeoutMilliseconds: PromptSecurityRegex.MatchTimeoutMilliseconds)]
     private static partial Regex ToolEnumerationRegex();
 }

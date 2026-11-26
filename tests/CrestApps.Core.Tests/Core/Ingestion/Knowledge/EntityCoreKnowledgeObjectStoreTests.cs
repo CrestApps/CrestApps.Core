@@ -4,6 +4,7 @@ using CrestApps.Core.Data.EntityCore;
 using CrestApps.Core.Data.EntityCore.Services;
 using CrestApps.Core.Infrastructure.Indexing;
 using CrestApps.Core.Services;
+using CrestApps.Core.Tests.Support;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -191,18 +192,18 @@ public sealed class EntityCoreKnowledgeObjectStoreTests
 
     private sealed class Harness : IAsyncDisposable
     {
-        private readonly string _databasePath;
+        private readonly TemporarySqliteDatabase _database;
         private readonly ServiceProvider _services;
         private readonly IServiceScope _scope;
         private readonly IStoreCommitter _committer;
 
         private Harness(
-            string databasePath,
+            TemporarySqliteDatabase database,
             ServiceProvider services,
             IServiceScope scope,
             CommandCapturingLoggerProvider commands)
         {
-            _databasePath = databasePath;
+            _database = database;
             _services = services;
             _scope = scope;
             _committer = scope.ServiceProvider.GetRequiredService<IStoreCommitter>();
@@ -219,19 +220,19 @@ public sealed class EntityCoreKnowledgeObjectStoreTests
 
         public static async Task<Harness> CreateAsync()
         {
-            var databasePath = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.db");
+            var database = new TemporarySqliteDatabase();
             var commands = new CommandCapturingLoggerProvider();
             var services = new ServiceCollection();
 
             services.AddLogging(builder => builder.AddProvider(commands));
             services.AddCoreEntityCoreDataStore(
-                options => options.UseSqlite($"Data Source={databasePath}"),
+                options => options.UseSqlite(database.ConnectionString),
                 store => store.TablePrefix = "CA_");
 
             var provider = services.BuildServiceProvider();
             await provider.InitializeEntityCoreSchemaAsync();
 
-            return new Harness(databasePath, provider, provider.CreateScope(), commands);
+            return new Harness(database, provider, provider.CreateScope(), commands);
         }
 
         public async Task SeedAsync(IEnumerable<KnowledgeObject> entries, CancellationToken cancellationToken)
@@ -248,17 +249,7 @@ public sealed class EntityCoreKnowledgeObjectStoreTests
         {
             _scope.Dispose();
             await _services.DisposeAsync();
-
-            if (File.Exists(_databasePath))
-            {
-                try
-                {
-                    File.Delete(_databasePath);
-                }
-                catch (IOException)
-                {
-                }
-            }
+            _database.Dispose();
         }
     }
 
