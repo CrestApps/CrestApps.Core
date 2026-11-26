@@ -1,4 +1,5 @@
 using CrestApps.Core.AI.FileSources;
+using CrestApps.Core.AI.FileSources.FileTransfer;
 using CrestApps.Core.AI.Mcp;
 using CrestApps.Core.AI.Mcp.Models;
 using CrestApps.Core.AI.Sftp.Handlers;
@@ -28,6 +29,7 @@ public static class ServiceCollectionExtensions
     {
         ArgumentNullException.ThrowIfNull(services);
 
+        services.TryAddSingleton<IRemoteFileEgressPolicy, DefaultRemoteFileEgressPolicy>();
         services.TryAddScoped<SftpRemoteFileClientFactory>();
 
         return services.AddCoreIngestionConnector<SftpIngestionConnector>(
@@ -47,6 +49,8 @@ public static class ServiceCollectionExtensions
     public static IServiceCollection AddCoreAISftpMcpResources(this IServiceCollection services, Action<McpResourceTypeEntry> configure = null)
     {
         ArgumentNullException.ThrowIfNull(services);
+
+        services.TryAddSingleton<IRemoteFileEgressPolicy, DefaultRemoteFileEgressPolicy>();
 
         return services.AddCoreAIMcpResourceType<SftpResourceTypeHandler>(SftpResourceConstants.Type, entry =>
                 {

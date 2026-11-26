@@ -1,4 +1,5 @@
 using System.Net;
+using CrestApps.Core.AI.FileSources.FileTransfer;
 using CrestApps.Core.AI.Ftp.Models;
 using CrestApps.Core.AI.Mcp;
 using FluentFTP;
@@ -18,6 +19,7 @@ public sealed class FtpResourceTypeHandler : RemoteFileResourceHandlerBase<FtpCo
 {
     private readonly IDataProtectionProvider _dataProtectionProvider;
     private readonly IOptions<FtpOptions> _options;
+    private readonly IRemoteFileEgressPolicy _egressPolicy;
     private readonly ILogger<FtpResourceTypeHandler> _logger;
 
     /// <summary>
@@ -25,15 +27,18 @@ public sealed class FtpResourceTypeHandler : RemoteFileResourceHandlerBase<FtpCo
     /// </summary>
     /// <param name="dataProtectionProvider">The data protection provider.</param>
     /// <param name="options">The host-level FTP options.</param>
+    /// <param name="egressPolicy">The policy that resolves and checks the server's address.</param>
     /// <param name="logger">The logger.</param>
     public FtpResourceTypeHandler(
         IDataProtectionProvider dataProtectionProvider,
         IOptions<FtpOptions> options,
+        IRemoteFileEgressPolicy egressPolicy,
         ILogger<FtpResourceTypeHandler> logger)
         : base(FtpResourceConstants.Type, logger)
     {
         _dataProtectionProvider = dataProtectionProvider;
         _options = options;
+        _egressPolicy = egressPolicy;
         _logger = logger;
     }
 
@@ -79,7 +84,10 @@ public sealed class FtpResourceTypeHandler : RemoteFileResourceHandlerBase<FtpCo
             }
         }
 
-        using var client = new AsyncFtpClient(host, metadata.Port ?? 21);
+        var port = metadata.Port ?? 21;
+        var address = await _egressPolicy.ResolveAsync(host, port, cancellationToken);
+
+        using var client = new PinnedAddressFtpClient(host, port, address);
 
         if (!string.IsNullOrEmpty(metadata.Username))
         {

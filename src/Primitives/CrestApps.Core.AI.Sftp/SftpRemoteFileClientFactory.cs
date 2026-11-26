@@ -14,18 +14,22 @@ namespace CrestApps.Core.AI.Sftp;
 public sealed class SftpRemoteFileClientFactory : IRemoteFileClientFactory
 {
     private readonly IDataProtectionProvider _dataProtectionProvider;
+    private readonly IRemoteFileEgressPolicy _egressPolicy;
     private readonly ILogger<SftpRemoteFileClientFactory> _logger;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="SftpRemoteFileClientFactory"/> class.
     /// </summary>
     /// <param name="dataProtectionProvider">The data protection provider the secrets were encrypted with.</param>
+    /// <param name="egressPolicy">The policy that resolves and checks the server's address, and the proxy's.</param>
     /// <param name="logger">The logger.</param>
     public SftpRemoteFileClientFactory(
         IDataProtectionProvider dataProtectionProvider,
+        IRemoteFileEgressPolicy egressPolicy,
         ILogger<SftpRemoteFileClientFactory> logger)
     {
         _dataProtectionProvider = dataProtectionProvider;
+        _egressPolicy = egressPolicy;
         _logger = logger;
     }
 
@@ -33,7 +37,7 @@ public sealed class SftpRemoteFileClientFactory : IRemoteFileClientFactory
     public string ConnectorName => SftpIngestionConnector.ConnectorName;
 
     /// <inheritdoc />
-    public Task<IRemoteFileClient> CreateAsync(IngestionSource source, CancellationToken cancellationToken = default)
+    public async Task<IRemoteFileClient> CreateAsync(IngestionSource source, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(source);
 
@@ -49,7 +53,7 @@ public sealed class SftpRemoteFileClientFactory : IRemoteFileClientFactory
         var password = Unprotect(metadata.Password, source.ItemId);
         var privateKey = Unprotect(metadata.PrivateKey, source.ItemId);
 
-        ConnectionInfo connectionInfo;
+        AuthenticationMethod authenticationMethod;
 
         if (!string.IsNullOrEmpty(privateKey))
         {
@@ -61,20 +65,21 @@ public sealed class SftpRemoteFileClientFactory : IRemoteFileClientFactory
                 ? new PrivateKeyFile(keyStream)
                 : new PrivateKeyFile(keyStream, passphrase);
 
-            connectionInfo = new ConnectionInfo(
-                metadata.Host,
-                metadata.Port ?? 22,
-                metadata.Username,
-                new PrivateKeyAuthenticationMethod(metadata.Username, keyFile));
+            authenticationMethod = new PrivateKeyAuthenticationMethod(metadata.Username, keyFile);
         }
         else
         {
-            connectionInfo = new ConnectionInfo(
-                metadata.Host,
-                metadata.Port ?? 22,
-                metadata.Username,
-                new PasswordAuthenticationMethod(metadata.Username, password ?? string.Empty));
+            authenticationMethod = new PasswordAuthenticationMethod(metadata.Username, password ?? string.Empty);
         }
+
+        var connectionInfo = await SftpConnectionInfoFactory.CreateAsync(
+            metadata,
+            metadata.Host,
+            Unprotect(metadata.ProxyPassword, source.ItemId),
+            [authenticationMethod],
+            _egressPolicy,
+            _logger,
+            cancellationToken);
 
         if (metadata.ConnectionTimeout is > 0)
         {
@@ -99,7 +104,7 @@ public sealed class SftpRemoteFileClientFactory : IRemoteFileClientFactory
             throw;
         }
 
-        return Task.FromResult<IRemoteFileClient>(new SftpRemoteFileClient(client, metadata.MaxFileBytes is > 0 ? metadata.MaxFileBytes.Value : RemoteFileLimits.DefaultMaxFileBytes));
+        return new SftpRemoteFileClient(client, metadata.MaxFileBytes is > 0 ? metadata.MaxFileBytes.Value : RemoteFileLimits.DefaultMaxFileBytes);
     }
 
     private string Unprotect(string value, string sourceId)
