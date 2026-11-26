@@ -22,6 +22,6 @@ internal sealed partial class PrivilegeEscalationRule : RegexPromptSecurityRuleB
     [GeneratedRegex(
         @"\b(?:as\s+(?:the\s+)?)?(?:administrator|admin|root|system\s+administrator|superuser|security\s+owner|platform\s+owner|developer\s+lead)\b.{0,80}\b(?:authorize|approved|allow|grant|disable|reveal|show|bypass|override)\b|\b(?:grant|assume|escalate|elevate)\s+(?:your\s+)?(?:permissions?|privileges?|access)\b|\b(?:use|switch\s+to)\s+(?:root|admin|sudo)\s+(?:permissions?|access|mode)\b",
         RegexOptions.IgnoreCase | RegexOptions.CultureInvariant,
-        matchTimeoutMilliseconds: 200)]
+        matchTimeoutMilliseconds: PromptSecurityRegex.MatchTimeoutMilliseconds)]
     private static partial Regex PrivilegeEscalationRegex();
 }

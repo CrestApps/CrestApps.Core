@@ -22,6 +22,6 @@ internal sealed partial class ConversationHistoryExtractionRule : RegexPromptSec
     [GeneratedRegex(
         @"\b(?:show|reveal|list|quote|repeat|dump|summarize)\b.{0,120}\b(?:conversation\s+history|chat\s+history|previous\s+messages|earlier\s+messages|prior\s+turns|all\s+messages|full\s+transcript|earlier\s+conversation\s+history)\b|\b(?:what|which)\s+(?:did|were)\s+(?:the\s+)?(?:user|assistant|system)\s+(?:say|message|messages)\s+(?:before|earlier|previously)\b",
         RegexOptions.IgnoreCase | RegexOptions.CultureInvariant,
-        matchTimeoutMilliseconds: 200)]
+        matchTimeoutMilliseconds: PromptSecurityRegex.MatchTimeoutMilliseconds)]
     private static partial Regex ConversationHistoryExtractionRegex();
 }

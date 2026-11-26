@@ -32,7 +32,7 @@ internal sealed class CustomBlockedPatternsRule : IPromptSecurityRule
                     context.NormalizedInput ?? string.Empty,
                     pattern,
                     RegexOptions.IgnoreCase | RegexOptions.CultureInvariant,
-                    TimeSpan.FromMilliseconds(100)))
+                    TimeSpan.FromMilliseconds(PromptSecurityRegex.MatchTimeoutMilliseconds)))
                 {
                     return ValueTask.FromResult(new PromptSecurityRuleResult
                     {

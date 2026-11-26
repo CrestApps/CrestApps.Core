@@ -310,33 +310,35 @@ public sealed partial class LegacyDefaultOutputSecurityFilter : IOutputSecurityF
         return false;
     }
 
+    // Unlike commit 333798a, which used 100 and 200 milliseconds, these patterns allow one second, as the current filter does. The first
+    // match of a pattern compiles its generated code inside the timeout, which on a busy CI runner alone could exceed the old values.
     [GeneratedRegex(
         @"type\s+\w+\s*=\s*\(_\s*:\s*\{[^}]*\}\)\s*=>\s*any",
         RegexOptions.IgnoreCase | RegexOptions.CultureInvariant,
-        matchTimeoutMilliseconds: 200)]
+        matchTimeoutMilliseconds: 1000)]
     private static partial Regex ToolDefinitionPatternRegex();
 
     [GeneratedRegex(
         @"\b\d{3}[-\s]?\d{2}[-\s]?\d{4}\b",
         RegexOptions.CultureInvariant,
-        matchTimeoutMilliseconds: 100)]
+        matchTimeoutMilliseconds: 1000)]
     private static partial Regex SsnPatternRegex();
 
     [GeneratedRegex(
         @"\b(?:4\d{3}|5[1-5]\d{2}|3[47]\d{2}|6(?:011|5\d{2}))[-\s]?\d{4}[-\s]?\d{4}[-\s]?\d{3,4}\b",
         RegexOptions.CultureInvariant,
-        matchTimeoutMilliseconds: 100)]
+        matchTimeoutMilliseconds: 1000)]
     private static partial Regex CreditCardPatternRegex();
 
     [GeneratedRegex(
         @"\b(?:stored|provided|shared|confidential|sensitive|financial|personal)\b.{0,40}\b(?:information|data|number|ssn|account|credit\s+card)\b|\b(?:account\s+number|ssn|social\s+security|credit\s+card)\b",
         RegexOptions.IgnoreCase | RegexOptions.CultureInvariant,
-        matchTimeoutMilliseconds: 100)]
+        matchTimeoutMilliseconds: 1000)]
     private static partial Regex SensitiveDataContextRegex();
 
     [GeneratedRegex(
         @"<script\b[^>]*>[\s\S]*?</script>|javascript\s*:\s*\S|on(?:error|load|click|mouseover|focus|blur)\s*=\s*[""'][^""']*[""']|\beval\s*\(\s*[""']",
         RegexOptions.IgnoreCase | RegexOptions.CultureInvariant,
-        matchTimeoutMilliseconds: 100)]
+        matchTimeoutMilliseconds: 1000)]
     private static partial Regex XssPayloadRegex();
 }

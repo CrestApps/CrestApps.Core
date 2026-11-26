@@ -22,6 +22,6 @@ internal sealed partial class MemoryExtractionRule : RegexPromptSecurityRuleBase
     [GeneratedRegex(
         @"\b(?:show|reveal|dump|list|print|export|retrieve)\b.{0,60}\b(?:memory\s+store|stored\s+memory|memory\s+entries|saved\s+memories|memory\s+records|long[-\s]?term\s+memory|profile\s+memory)\b|\b(?:what|which)\s+(?:stored|saved|raw)\s+(?:memory|memories|profile\s+memory)\s+(?:do\s+you\s+have|exists?)\b",
         RegexOptions.IgnoreCase | RegexOptions.CultureInvariant,
-        matchTimeoutMilliseconds: 200)]
+        matchTimeoutMilliseconds: PromptSecurityRegex.MatchTimeoutMilliseconds)]
     private static partial Regex MemoryExtractionRegex();
 }
