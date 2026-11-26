@@ -12,7 +12,6 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Microsoft.AspNetCore.Mvc.Razor.RuntimeCompilation" />
     <PackageReference Include="ModelContextProtocol.AspNetCore" />
     <PackageReference Include="NLog" />
     <PackageReference Include="NLog.Web.AspNetCore" />

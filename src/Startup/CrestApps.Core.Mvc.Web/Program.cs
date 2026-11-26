@@ -96,7 +96,6 @@ builder.Services.AddControllersWithViews(options =>
             .RequireAuthenticatedUser()
             .Build()));
     })
-    .AddRazorRuntimeCompilation()
     .AddCrestAppsStoreCommitterFilter();
 
 builder.Services.AddHttpContextAccessor();
