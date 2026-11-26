@@ -192,9 +192,16 @@
         const ftpFields = document.getElementById('ftpFields');
         const sftpFields = document.getElementById('sftpFields');
 
+        // The FTP and SFTP sections share field names (Host, Port, Username, Password). A disabled field is not
+        // posted, so only the shown section's values reach the server.
+        function showSection(section, isShown) {
+            section.style.display = isShown ? '' : 'none';
+            section.querySelectorAll('input, select, textarea').forEach(field => field.disabled = !isShown);
+        }
+
         function updateVisibility() {
-            ftpFields.style.display = resourceType.value === '@CrestApps.Core.AI.Ftp.FtpResourceConstants.Type' ? '' : 'none';
-            sftpFields.style.display = resourceType.value === '@CrestApps.Core.AI.Sftp.SftpResourceConstants.Type' ? '' : 'none';
+            showSection(ftpFields, resourceType.value === '@CrestApps.Core.AI.Ftp.FtpResourceConstants.Type');
+            showSection(sftpFields, resourceType.value === '@CrestApps.Core.AI.Sftp.SftpResourceConstants.Type');
         }
 
         resourceType.addEventListener('change', updateVisibility);
