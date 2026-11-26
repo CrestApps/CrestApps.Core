@@ -91,6 +91,7 @@ public sealed class McpResourceController : Controller
             return NotFound();
         }
 
+        SetStoredSecretFlags(model, resource);
         Validate(model, true);
         if (!ModelState.IsValid)
         {
@@ -250,7 +251,6 @@ public sealed class McpResourceController : Controller
                 model.Host = ftpMetadata.Host;
                 model.Port = ftpMetadata.Port;
                 model.Username = ftpMetadata.Username;
-                model.HasPassword = !string.IsNullOrEmpty(ftpMetadata.Password);
                 model.EncryptionMode = ftpMetadata.EncryptionMode;
                 model.DataConnectionType = ftpMetadata.DataConnectionType;
                 model.ValidateAnyCertificate = ftpMetadata.ValidateAnyCertificate;
@@ -266,21 +266,40 @@ public sealed class McpResourceController : Controller
                 model.Host = sftpMetadata.Host;
                 model.Port = sftpMetadata.Port;
                 model.Username = sftpMetadata.Username;
-                model.HasPassword = !string.IsNullOrEmpty(sftpMetadata.Password);
-                model.HasPrivateKey = !string.IsNullOrEmpty(sftpMetadata.PrivateKey);
-                model.HasPassphrase = !string.IsNullOrEmpty(sftpMetadata.Passphrase);
                 model.HostKeyFingerprint = sftpMetadata.HostKeyFingerprint;
                 model.ProxyType = sftpMetadata.ProxyType;
                 model.ProxyHost = sftpMetadata.ProxyHost;
                 model.ProxyPort = sftpMetadata.ProxyPort;
                 model.ProxyUsername = sftpMetadata.ProxyUsername;
-                model.HasProxyPassword = !string.IsNullOrEmpty(sftpMetadata.ProxyPassword);
                 model.ConnectionTimeout = sftpMetadata.ConnectionTimeout;
                 model.KeepAliveInterval = sftpMetadata.KeepAliveInterval;
             }
         }
 
+        SetStoredSecretFlags(model, resource);
+
         return model;
+    }
+
+    /// <summary>
+    /// Sets which secrets the resource already stores for the model's resource type. The form never posts these flags,
+    /// so a save reads them again from the stored resource: a secret left blank is then kept rather than demanded.
+    /// </summary>
+    /// <param name="model">The model to set the flags on.</param>
+    /// <param name="resource">The stored resource.</param>
+    private static void SetStoredSecretFlags(McpResourceViewModel model, McpResource resource)
+    {
+        if (model.Source == FtpResourceConstants.Type && resource.TryGet<FtpConnectionMetadata>(out var ftpMetadata))
+        {
+            model.HasPassword = !string.IsNullOrEmpty(ftpMetadata.Password);
+        }
+        else if (model.Source == SftpResourceConstants.Type && resource.TryGet<SftpConnectionMetadata>(out var sftpMetadata))
+        {
+            model.HasPassword = !string.IsNullOrEmpty(sftpMetadata.Password);
+            model.HasPrivateKey = !string.IsNullOrEmpty(sftpMetadata.PrivateKey);
+            model.HasPassphrase = !string.IsNullOrEmpty(sftpMetadata.Passphrase);
+            model.HasProxyPassword = !string.IsNullOrEmpty(sftpMetadata.ProxyPassword);
+        }
     }
 
     private static string BuildUri(string source, string itemId, string path)
