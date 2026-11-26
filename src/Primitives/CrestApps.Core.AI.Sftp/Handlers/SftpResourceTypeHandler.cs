@@ -69,7 +69,7 @@ public sealed class SftpResourceTypeHandler : RemoteFileResourceHandlerBase<Sftp
             return "No authentication method provided. Please provide a password or private key.";
         }
 
-        return null;
+        return SftpConnectionInfoFactory.GetProxyViolation(metadata);
     }
 
     /// <inheritdoc />

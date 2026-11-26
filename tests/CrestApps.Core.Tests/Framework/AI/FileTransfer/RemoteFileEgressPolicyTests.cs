@@ -170,13 +170,15 @@ public sealed class RemoteFileEgressPolicyTests
         Assert.Equal([(ServerHost, port)], policy.Requests);
     }
 
-    [Fact]
-    public async Task SftpFactory_ConnectsThroughTheProxyAndAsksItForTheCheckedServerAddress()
+    [Theory]
+    [InlineData("127.0.0.1", "CONNECT 127.0.0.1:2222 HTTP/1.0")]
+    [InlineData("::1", "CONNECT [::1]:2222 HTTP/1.0")]
+    public async Task SftpFactory_ConnectsThroughTheProxyAndAsksItForTheCheckedServerAddress(string serverAddress, string expectedRequest)
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var proxy = StartListener();
         var proxyPort = GetPort(proxy);
-        var policy = new LoopbackEgressPolicy();
+        var policy = new LoopbackEgressPolicy(IPAddress.Parse(serverAddress));
         var factory = new SftpRemoteFileClientFactory(new EphemeralDataProtectionProvider(), policy, NullLogger<SftpRemoteFileClientFactory>.Instance);
         var metadata = CreateSftpMetadata(2222);
         metadata.ProxyType = "Http";
@@ -197,7 +199,7 @@ public sealed class RemoteFileEgressPolicyTests
 
         await Record.ExceptionAsync(() => connecting);
 
-        Assert.Equal("CONNECT 127.0.0.1:2222 HTTP/1.0", request);
+        Assert.Equal(expectedRequest, request);
         Assert.Equal([(ProxyHost, proxyPort), (ServerHost, 2222)], policy.Requests);
     }
 
@@ -214,6 +216,22 @@ public sealed class RemoteFileEgressPolicyTests
         var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => factory.CreateAsync(source, TestContext.Current.CancellationToken));
 
         Assert.Contains("proxy", exception.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Empty(policy.Requests);
+    }
+
+    [Fact]
+    public async Task SftpResourceHandler_ReportsAProxyWithoutAHostAndPortAsItsResult()
+    {
+        var policy = new LoopbackEgressPolicy();
+        var handler = new SftpResourceTypeHandler(new EphemeralDataProtectionProvider(), policy, NullLogger<SftpResourceTypeHandler>.Instance);
+        var metadata = CreateSftpMetadata(2222);
+        metadata.ProxyType = "Socks5";
+        var resource = CreateResource(metadata);
+
+        var result = await handler.ReadAsync(resource, new Dictionary<string, string> { ["path"] = "file.txt" }, TestContext.Current.CancellationToken);
+
+        var content = Assert.IsType<TextResourceContents>(Assert.Single(result.Contents));
+        Assert.Contains("proxy", content.Text, StringComparison.OrdinalIgnoreCase);
         Assert.Empty(policy.Requests);
     }
 
@@ -355,6 +373,12 @@ public sealed class RemoteFileEgressPolicyTests
     private sealed class LoopbackEgressPolicy : IRemoteFileEgressPolicy
     {
         private readonly ConcurrentQueue<(string Host, int Port)> _requests = new();
+        private readonly IPAddress _serverAddress;
+
+        public LoopbackEgressPolicy(IPAddress serverAddress = null)
+        {
+            _serverAddress = serverAddress ?? IPAddress.Loopback;
+        }
 
         public IEnumerable<(string Host, int Port)> Requests => _requests;
 
@@ -362,7 +386,7 @@ public sealed class RemoteFileEgressPolicyTests
         {
             _requests.Enqueue((host, port));
 
-            return Task.FromResult(IPAddress.Loopback);
+            return Task.FromResult(host == ServerHost ? _serverAddress : IPAddress.Loopback);
         }
     }
 
